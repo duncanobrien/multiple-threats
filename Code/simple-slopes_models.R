@@ -109,6 +109,17 @@ mod2 <- brm(bf(y_centered ~  scaled_time*threats + (-1 + time|series) +
             chains = 4,
             control=list(adapt_delta=0.975,max_treedepth = 15),
             cores = 4)
-simp_slopes_b <- emmeans::emtrends(mod2b, ~ threats,var = "scaled_time")
-plot(simp_slopes_b)
-conditional_effects(mod2b)
+simp_slopes <- emmeans::emtrends(mod2b, ~ threats,var = "scaled_time")
+plot(simp_slopes)
+conditional_effects(mod2)
+
+mod2_coefs <- as.data.frame(simp_slopes)
+
+ggplot(as.data.frame(mod2_coefs) |>
+         arrange(threats),
+       aes(y = threats, x = scaled_time.trend)) + 
+  geom_pointrange(aes(xmin = lower.HPD, xmax = upper.HPD)) + 
+  geom_vline(xintercept=0) + 
+  ggtitle("state space") + 
+  theme_bw()
+

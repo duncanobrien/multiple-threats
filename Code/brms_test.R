@@ -192,6 +192,15 @@ mod2 <- brm(bf(y_centered ~  scaled_time*threats + (-1 + time|series) - 1
 simp_slopes <- emmeans::emtrends(mod2, ~ threats,var = "scaled_time")
 plot(simp_slopes)
 conditional_effects(mod2)
+mod2_coefs <- as.data.frame(simp_slopes)
+
+ggplot(as.data.frame(mod2_coefs) |>
+         arrange(threats),
+       aes(y = threats, x = scaled_time.trend)) + 
+  geom_pointrange(aes(xmin = lower.HPD, xmax = upper.HPD)) + 
+  geom_vline(xintercept=0) + 
+  ggtitle("state space") + 
+  theme_bw()
 
 mod2b <- brm(bf(y_centered ~  scaled_time*threats + (-1 + time|series) +
                  (1|SpeciesName) + (1|Realm) - 1
@@ -208,6 +217,16 @@ mod2b <- brm(bf(y_centered ~  scaled_time*threats + (-1 + time|series) +
 simp_slopes_b <- emmeans::emtrends(mod2b, ~ threats,var = "scaled_time")
 plot(simp_slopes_b)
 conditional_effects(mod2b)
+mod2b_coefs <- as.data.frame(simp_slopes_b)
+
+ggplot(as.data.frame(mod2b_coefs) |>
+         arrange(threats),
+       aes(y = threats, x = scaled_time.trend)) + 
+  geom_pointrange(aes(xmin = lower.HPD, xmax = upper.HPD)) + 
+  geom_vline(xintercept=0) + 
+  ggtitle("state space") + 
+  theme_bw()
+
 
 ss_data10 <- pops_data %>% 
   filter(ID%in%test_data2$ID) %>%
