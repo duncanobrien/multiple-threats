@@ -93,37 +93,29 @@ test_data2 <-  mod_dat_full %>%
          scaled_time = scales::rescale(year)) %>%
   ungroup()
 
+ss_data10 <- pops_data %>% 
+  filter(ID%in%test_data2$ID) %>%
+  mutate(threats = factor(ifelse(is.na(threats),"none",threats))) %>% #convert stressors to binary
+  mutate(threats = fct_relevel(threats, "none"))
+
 ##########################################################################################
-## non-linear model ##
+## state space trends ##
 ##########################################################################################
 
-mod1 <- brm(bf(y_centered ~ trend  -1,
-               trend ~ scaled_time:threats + (-1 + time|series) 
-               + (1|SpeciesName) + (1|Realm) - 1, 
-               nl = TRUE
-               , autocor = ~ar(time = time,gr = series,p=1)
-               ),
-            data = test_data2, family = gaussian(),
+mod3 <- brm(mu | se(sigma, sigma = TRUE)  ~ threats +
+              (1|SpeciesName) + (1|Realm) -1 , 
+            data = ss_data10,
+            family = gaussian(), 
             iter = 2000,
-            refresh=100,
-            backend = "cmdstanr",
-            control=list(adapt_delta=0.985,max_treedepth = 15),
-            cores = 4)
+            refresh =100,
+            chains = 4,
+            cores = 4,
+            #backend = "cmdstanr",
+            control = list(adapt_delta = .975, max_treedepth = 15))
 
-mod1_coefs <- broom.mixed::tidy(mod1) |>
-  filter(grepl("trend_scaled",term)) |>
-  mutate(term = gsub("trend_scaled_time:threats","",term))
-
-saveRDS(mod1,"Results/models/non-linear.RDS")
-
-ggplot(as.data.frame(mod1_coefs) |>
-         arrange(term),
-       aes(y = term, x = estimate)) + 
-  geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) + 
-  geom_vline(xintercept=0) + 
-  ggtitle("non-linear") + 
-  theme_bw()
-
-ggsave("Results/models/pp_check-non-linear.pdf",
-       pp_check(mod1),
+saveRDS(mod3,"Results/models/state-space.RDS")
+ggsave("Results/models/pp_check-state-space.pdf",
+       pp_check(mod3) +
+         coord_cartesian(xlim=c(-2.5,2.5)),
        width = 6,height = 4)
+

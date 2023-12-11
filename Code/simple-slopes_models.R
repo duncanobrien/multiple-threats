@@ -125,3 +125,8 @@ ggplot(as.data.frame(mod2_coefs) |>
   ggtitle("simple slopes") + 
   theme_bw()
 
+mod2 <- readRDS("Results/models/simple-slopes.RDS")
+ggsave("Results/models/pp_check-simple-slopes.pdf",
+       pp_check(mod2),
+       width = 6,height = 4)
+
