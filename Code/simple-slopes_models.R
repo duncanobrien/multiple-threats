@@ -89,7 +89,7 @@ test_data2 <-  mod_dat_full %>%
   #filter(series %in% base::sample(unique(series),500)) %>%
   mutate(threats = as.character(threats)) %>%
   group_by(ID) %>%
-  mutate(centered_year = year-min(year),
+  mutate(centered_year = year-min(year-1), #set first year with data to year 1
          scaled_time = scales::rescale(year)) %>%
   ungroup()
 
@@ -105,13 +105,15 @@ mod2 <- brm(bf(y_centered ~  scaled_time*threats + (-1 + time|series) +
             family = gaussian(),
             iter = 2000,
             refresh=100,
-            #backend = "cmdstanr",
+            backend = "cmdstanr",
             chains = 4,
             control=list(adapt_delta=0.975,max_treedepth = 15),
             cores = 4)
-simp_slopes <- emmeans::emtrends(mod2b, ~ threats,var = "scaled_time")
+simp_slopes <- emmeans::emtrends(mod2, ~ threats,var = "scaled_time")
 plot(simp_slopes)
 conditional_effects(mod2)
+
+saveRDS(mod2,"Results/models/simple-slopes.RDS")
 
 mod2_coefs <- as.data.frame(simp_slopes)
 
@@ -120,6 +122,6 @@ ggplot(as.data.frame(mod2_coefs) |>
        aes(y = threats, x = scaled_time.trend)) + 
   geom_pointrange(aes(xmin = lower.HPD, xmax = upper.HPD)) + 
   geom_vline(xintercept=0) + 
-  ggtitle("state space") + 
+  ggtitle("simple slopes") + 
   theme_bw()
 

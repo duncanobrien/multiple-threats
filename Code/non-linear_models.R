@@ -89,7 +89,7 @@ test_data2 <-  mod_dat_full %>%
   #filter(series %in% base::sample(unique(series),500)) %>%
   mutate(threats = as.character(threats)) %>%
   group_by(ID) %>%
-  mutate(centered_year = year-min(year),
+  mutate(centered_year = year-min(year-1), #set first year with data to year 1
          scaled_time = scales::rescale(year)) %>%
   ungroup()
 
@@ -113,3 +113,14 @@ mod1 <- brm(bf(y_centered ~ trend  -1,
 mod1_coefs <- broom.mixed::tidy(mod1) |>
   filter(grepl("trend_scaled",term)) |>
   mutate(term = gsub("trend_scaled_time:threats","",term))
+
+saveRDS(mod1,"Results/models/non-linear.RDS")
+
+
+ggplot(as.data.frame(mod1_coefs) |>
+         arrange(term),
+       aes(y = term, x = estimate)) + 
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) + 
+  geom_vline(xintercept=0) + 
+  ggtitle("non-linear") + 
+  theme_bw()
