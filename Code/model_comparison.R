@@ -1,6 +1,7 @@
 require(tidyverse)
 require(brms)
 require(tidybayes)
+require(patchwork)
 
 mod1 <- readRDS("Results/models/non-linear.RDS")
 mod2 <- readRDS("Results/models/simple-slopes.RDS")
@@ -37,6 +38,10 @@ mod3_draws <- mod3 |>
                 .variable = fct_relevel(.variable,"None")) |>
   tidybayes::median_qi(.width = c(.95, .8, .5))
 
+##########################################################################################
+## visualise ##
+##########################################################################################
+
 threats_plot_data <- rbind(mod1_draws |>
                              dplyr::mutate(model = "Non-linear"),
                            mod2_draws  |>
@@ -68,3 +73,12 @@ ggplot(threats_plot_data,aes(y = .variable, x = .value,col = model)) +
         axis.ticks = element_line(color="black"),
         plot.title = element_text(hjust = 0.5)),
 width = 10,height = 10)
+
+##########################################################################################
+## pp_checks ##
+##########################################################################################
+ggsave("Results/models/model_ppc_comparison.pdf",
+       brms::pp_check(mod1) + ggtitle("Non-linear") +
+         brms::pp_check(mod2) + ggtitle("Simple slopes") +
+         brms::pp_check(mod3) + coord_cartesian(xlim=c(-2.5,2.5)) + ggtitle("State space"),
+       width = 10, height = 6)
