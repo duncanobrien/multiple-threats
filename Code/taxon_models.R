@@ -75,7 +75,7 @@ mod_dat_full <- pops %>%
   mutate(threats = fct_relevel(threats, "none")) %>%
   #filter(!all(is.na(value))) %>%
   left_join(pop_data10,by = "ID") %>%
-  mutate(across(pollution:none,~ifelse(is.na(.x),0,1))) %>% #convert absence of stress to binary
+  mutate(across(pollution:none,~ifelse(is.na(.x),"0","1"))) %>% #convert absence of stress to binary
   group_by(ID) %>%
   slice(1:max(which(!is.na(y))))  %>% #remove lagging years containing all NAs (to prevent unbounded interpolation)
   mutate(scaled_time = scales::rescale(year), #rescale start/end of time series between [0-1] for comparability

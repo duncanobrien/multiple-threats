@@ -3,6 +3,10 @@ require(brms)
 require(tidybayes)
 require(patchwork)
 
+##########################################################################################
+## interacting threats ##
+##########################################################################################
+
 mod1 <- readRDS("Results/models/non-linear.RDS")
 mod2 <- readRDS("Results/models/simple-slopes.RDS")
 mod3 <- readRDS("Results/models/state-space.RDS")
@@ -37,10 +41,6 @@ mod3_draws <- mod3 |>
   dplyr::mutate(.variable = factor(.variable),
                 .variable = fct_relevel(.variable,"None")) |>
   tidybayes::median_qi(.width = c(.95, .8, .5))
-
-##########################################################################################
-## visualise interacting threats ##
-##########################################################################################
 
 threats_plot_data <- rbind(mod1_draws |>
                              dplyr::mutate(model = "Non-linear"),
@@ -77,12 +77,12 @@ width = 10,height = 10)
 ##########################################################################################
 ## pp_checks ##
 ##########################################################################################
+
 ggsave("Results/models/model_ppc_comparison.pdf",
        brms::pp_check(mod1) + ggtitle("Non-linear") +
          brms::pp_check(mod2) + ggtitle("Simple slopes") +
          brms::pp_check(mod3) + coord_cartesian(xlim=c(-2.5,2.5)) + ggtitle("State space"),
        width = 10, height = 6)
-
 
 ##########################################################################################
 ## realm models ##
@@ -91,31 +91,73 @@ mod2_mar <- readRDS("Results/models/simple-slopes-marine.RDS")
 mod2_fre <- readRDS("Results/models/simple-slopes-fresh.RDS")
 mod2_ter <- readRDS("Results/models/simple-slopes-terra.RDS")
 
-mod2_mar_draws <- emmeans::emtrends(mod2_mar, ~ none,var = "scaled_time",at = list(none = 1)) |>
+mod2_mar_draws <- emmeans::emtrends(mod2_mar, ~ none,var = "scaled_time",at = list(none = "1",
+                                                                                   pollution = "0",
+                                                                                   habitatl = "0" ,
+                                                                                   climatechange = "0",
+                                                                                   invasive = "0",
+                                                                                   exploitation = "0",
+                                                                                   disease = "0")) |>
   tidybayes::gather_emmeans_draws() |>
   dplyr::rename(".variable" = none) |>
   dplyr::mutate(.variable = "None") |>
-  rbind(emmeans::emtrends(mod2_mar, ~ pollution,var = "scaled_time",at = list(pollution = 1)) |>
+  rbind(emmeans::emtrends(mod2_mar, ~ pollution,var = "scaled_time",at = list(none = "0",
+                                                                               pollution = "1",
+                                                                               habitatl = "0" ,
+                                                                               climatechange = "0",
+                                                                               invasive = "0",
+                                                                               exploitation = "0",
+                                                                               disease = "0")) |>
           tidybayes::gather_emmeans_draws() |>
           dplyr::rename(".variable" = pollution) |>
           dplyr::mutate(.variable = "Pollution"),
-        emmeans::emtrends(mod2_mar, ~ habitatl,var = "scaled_time",at = list(habitatl = 1)) |>
+        emmeans::emtrends(mod2_mar, ~ habitatl,var = "scaled_time",at = list(none = "0",
+                                                                             pollution = "0",
+                                                                             habitatl = "1" ,
+                                                                             climatechange = "0",
+                                                                             invasive = "0",
+                                                                             exploitation = "0",
+                                                                             disease = "0")) |>
           tidybayes::gather_emmeans_draws()|>
           dplyr::rename(".variable" = habitatl) |>
           dplyr::mutate(.variable = "Habitat loss"),
-        emmeans::emtrends(mod2_mar, ~ climatechange,var = "scaled_time",at = list(climatechange = 1)) |>
+        emmeans::emtrends(mod2_mar, ~ climatechange,var = "scaled_time",at = list(none = "0",
+                                                                                  pollution = "0",
+                                                                                  habitatl = "0" ,
+                                                                                  climatechange = "1",
+                                                                                  invasive = "0",
+                                                                                  exploitation = "0",
+                                                                                  disease = "0")) |>
           tidybayes::gather_emmeans_draws()|>
           dplyr::rename(".variable" = climatechange) |>
           dplyr::mutate(.variable = "Climate change"),
-        emmeans::emtrends(mod2_mar, ~ invasive,var = "scaled_time",at = list(invasive = 1)) |>
+        emmeans::emtrends(mod2_mar, ~ invasive,var = "scaled_time",at = list(none = "0",
+                                                                             pollution = "0",
+                                                                             habitatl = "0" ,
+                                                                             climatechange = "0",
+                                                                             invasive = "1",
+                                                                             exploitation = "0",
+                                                                             disease = "0")) |>
           tidybayes::gather_emmeans_draws()|>
           dplyr::rename(".variable" = invasive) |>
           dplyr::mutate(.variable = "Invasive species"),
-        emmeans::emtrends(mod2_mar, ~ exploitation,var = "scaled_time",at = list(exploitation = 1)) |>
+        emmeans::emtrends(mod2_mar, ~ exploitation,var = "scaled_time",at = list(none = "0",
+                                                                                 pollution = "0",
+                                                                                 habitatl = "0" ,
+                                                                                 climatechange = "0",
+                                                                                 invasive = "0",
+                                                                                 exploitation = "1",
+                                                                                 disease = "0")) |>
           tidybayes::gather_emmeans_draws()|>
           dplyr::rename(".variable" = exploitation) |>
           dplyr::mutate(.variable = "Exploitation"),
-        emmeans::emtrends(mod2_mar, ~ disease,var = "scaled_time",at = list(disease = 1)) |>
+        emmeans::emtrends(mod2_mar, ~ disease,var = "scaled_time",at = list(none = "0",
+                                                                            pollution = "0",
+                                                                            habitatl = "0" ,
+                                                                            climatechange = "0",
+                                                                            invasive = "0",
+                                                                            exploitation = "0",
+                                                                            disease = "1")) |>
           tidybayes::gather_emmeans_draws()|>
           dplyr::rename(".variable" = disease) |>
           dplyr::mutate(.variable = "Disease")) |>
@@ -123,31 +165,73 @@ mod2_mar_draws <- emmeans::emtrends(mod2_mar, ~ none,var = "scaled_time",at = li
                 .variable = fct_relevel(.variable,"None")) |>
   tidybayes::median_qi(.width = c(.95, .8, .5))
 
-mod2_fre_draws <- emmeans::emtrends(mod2_fre, ~ none,var = "scaled_time",at = list(none = 1)) |>
+mod2_fre_draws <- emmeans::emtrends(mod2_fre, ~ none,var = "scaled_time",at = list(none = "1",
+                                                                                   pollution = "0",
+                                                                                   habitatl = "0" ,
+                                                                                   climatechange = "0",
+                                                                                   invasive = "0",
+                                                                                   exploitation = "0",
+                                                                                   disease = "0")) |>
   tidybayes::gather_emmeans_draws() |>
   dplyr::rename(".variable" = none) |>
   dplyr::mutate(.variable = "None") |>
-  rbind(emmeans::emtrends(mod2_fre, ~ pollution,var = "scaled_time",at = list(pollution = 1)) |>
+  rbind(emmeans::emtrends(mod2_fre, ~ pollution,var = "scaled_time",at = list(none = "0",
+                                                                              pollution = "1",
+                                                                              habitatl = "0" ,
+                                                                              climatechange = "0",
+                                                                              invasive = "0",
+                                                                              exploitation = "0",
+                                                                              disease = "0")) |>
           tidybayes::gather_emmeans_draws() |>
           dplyr::rename(".variable" = pollution) |>
           dplyr::mutate(.variable = "Pollution"),
-        emmeans::emtrends(mod2_fre, ~ habitatl,var = "scaled_time",at = list(habitatl = 1)) |>
+        emmeans::emtrends(mod2_fre, ~ habitatl,var = "scaled_time",at = list(none = "0",
+                                                                             pollution = "0",
+                                                                             habitatl = "1" ,
+                                                                             climatechange = "0",
+                                                                             invasive = "0",
+                                                                             exploitation = "0",
+                                                                             disease = "0")) |>
           tidybayes::gather_emmeans_draws()|>
           dplyr::rename(".variable" = habitatl) |>
           dplyr::mutate(.variable = "Habitat loss"),
-        emmeans::emtrends(mod2_fre, ~ climatechange,var = "scaled_time",at = list(climatechange = 1)) |>
+        emmeans::emtrends(mod2_fre, ~ climatechange,var = "scaled_time",at = list(none = "0",
+                                                                                  pollution = "0",
+                                                                                  habitatl = "0" ,
+                                                                                  climatechange = "1",
+                                                                                  invasive = "0",
+                                                                                  exploitation = "0",
+                                                                                  disease = "0")) |>
           tidybayes::gather_emmeans_draws()|>
           dplyr::rename(".variable" = climatechange) |>
           dplyr::mutate(.variable = "Climate change"),
-        emmeans::emtrends(mod2_fre, ~ invasive,var = "scaled_time",at = list(invasive = 1)) |>
+        emmeans::emtrends(mod2_fre, ~ invasive,var = "scaled_time",at = list(none = "0",
+                                                                             pollution = "0",
+                                                                             habitatl = "0" ,
+                                                                             climatechange = "0",
+                                                                             invasive = "1",
+                                                                             exploitation = "0",
+                                                                             disease = "0")) |>
           tidybayes::gather_emmeans_draws()|>
           dplyr::rename(".variable" = invasive) |>
           dplyr::mutate(.variable = "Invasive species"),
-        emmeans::emtrends(mod2_fre, ~ exploitation,var = "scaled_time",at = list(exploitation = 1)) |>
+        emmeans::emtrends(mod2_fre, ~ exploitation,var = "scaled_time",at = list(none = "0",
+                                                                                 pollution = "0",
+                                                                                 habitatl = "0" ,
+                                                                                 climatechange = "0",
+                                                                                 invasive = "0",
+                                                                                 exploitation = "1",
+                                                                                 disease = "0")) |>
           tidybayes::gather_emmeans_draws()|>
           dplyr::rename(".variable" = exploitation) |>
           dplyr::mutate(.variable = "Exploitation"),
-        emmeans::emtrends(mod2_fre, ~ disease,var = "scaled_time",at = list(disease = 1)) |>
+        emmeans::emtrends(mod2_fre, ~ disease,var = "scaled_time",at = list(none = "0",
+                                                                            pollution = "0",
+                                                                            habitatl = "0" ,
+                                                                            climatechange = "0",
+                                                                            invasive = "0",
+                                                                            exploitation = "0",
+                                                                            disease = "1")) |>
           tidybayes::gather_emmeans_draws()|>
           dplyr::rename(".variable" = disease) |>
           dplyr::mutate(.variable = "Disease")) |>
@@ -155,31 +239,73 @@ mod2_fre_draws <- emmeans::emtrends(mod2_fre, ~ none,var = "scaled_time",at = li
                 .variable = fct_relevel(.variable,"None")) |>
   tidybayes::median_qi(.width = c(.95, .8, .5))
 
-mod2_ter_draws <- emmeans::emtrends(mod2_ter, ~ none,var = "scaled_time",at = list(none = 1)) |>
+mod2_ter_draws <- emmeans::emtrends(mod2_ter, ~ none,var = "scaled_time",at = list(none = "1",
+                                                                                   pollution = "0",
+                                                                                   habitatl = "0" ,
+                                                                                   climatechange = "0",
+                                                                                   invasive = "0",
+                                                                                   exploitation = "0",
+                                                                                   disease = "0")) |>
   tidybayes::gather_emmeans_draws() |>
   dplyr::rename(".variable" = none) |>
   dplyr::mutate(.variable = "None") |>
-  rbind(emmeans::emtrends(mod2_ter, ~ pollution,var = "scaled_time",at = list(pollution = 1)) |>
+  rbind(emmeans::emtrends(mod2_ter, ~ pollution,var = "scaled_time",at = list(none = "0",
+                                                                              pollution = "1",
+                                                                              habitatl = "0" ,
+                                                                              climatechange = "0",
+                                                                              invasive = "0",
+                                                                              exploitation = "0",
+                                                                              disease = "0")) |>
           tidybayes::gather_emmeans_draws() |>
           dplyr::rename(".variable" = pollution) |>
           dplyr::mutate(.variable = "Pollution"),
-        emmeans::emtrends(mod2_ter, ~ habitatl,var = "scaled_time",at = list(habitatl = 1)) |>
+        emmeans::emtrends(mod2_ter, ~ habitatl,var = "scaled_time",at = list(none = "0",
+                                                                             pollution = "0",
+                                                                             habitatl = "1" ,
+                                                                             climatechange = "0",
+                                                                             invasive = "0",
+                                                                             exploitation = "0",
+                                                                             disease = "0")) |>
           tidybayes::gather_emmeans_draws()|>
           dplyr::rename(".variable" = habitatl) |>
           dplyr::mutate(.variable = "Habitat loss"),
-        emmeans::emtrends(mod2_ter, ~ climatechange,var = "scaled_time",at = list(climatechange = 1)) |>
+        emmeans::emtrends(mod2_ter, ~ climatechange,var = "scaled_time",at = list(none = "0",
+                                                                                  pollution = "0",
+                                                                                  habitatl = "0" ,
+                                                                                  climatechange = "1",
+                                                                                  invasive = "0",
+                                                                                  exploitation = "0",
+                                                                                  disease = "0")) |>
           tidybayes::gather_emmeans_draws()|>
           dplyr::rename(".variable" = climatechange) |>
           dplyr::mutate(.variable = "Climate change"),
-        emmeans::emtrends(mod2_ter, ~ invasive,var = "scaled_time",at = list(invasive = 1)) |>
+        emmeans::emtrends(mod2_ter, ~ invasive,var = "scaled_time",at = list(none = "0",
+                                                                             pollution = "0",
+                                                                             habitatl = "0" ,
+                                                                             climatechange = "0",
+                                                                             invasive = "1",
+                                                                             exploitation = "0",
+                                                                             disease = "0")) |>
           tidybayes::gather_emmeans_draws()|>
           dplyr::rename(".variable" = invasive) |>
           dplyr::mutate(.variable = "Invasive species"),
-        emmeans::emtrends(mod2_ter, ~ exploitation,var = "scaled_time",at = list(exploitation = 1)) |>
+        emmeans::emtrends(mod2_ter, ~ exploitation,var = "scaled_time",at = list(none = "0",
+                                                                                 pollution = "0",
+                                                                                 habitatl = "0" ,
+                                                                                 climatechange = "0",
+                                                                                 invasive = "0",
+                                                                                 exploitation = "1",
+                                                                                 disease = "0")) |>
           tidybayes::gather_emmeans_draws()|>
           dplyr::rename(".variable" = exploitation) |>
           dplyr::mutate(.variable = "Exploitation"),
-        emmeans::emtrends(mod2_ter, ~ disease,var = "scaled_time",at = list(disease = 1)) |>
+        emmeans::emtrends(mod2_ter, ~ disease,var = "scaled_time",at = list(none = "0",
+                                                                            pollution = "0",
+                                                                            habitatl = "0" ,
+                                                                            climatechange = "0",
+                                                                            invasive = "0",
+                                                                            exploitation = "0",
+                                                                            disease = "1")) |>
           tidybayes::gather_emmeans_draws()|>
           dplyr::rename(".variable" = disease) |>
           dplyr::mutate(.variable = "Disease")) |>
@@ -214,6 +340,7 @@ ggplot(realms_plot_data,aes(y = .value , x = .variable,col = System)) +
         strip.text.x = element_text(size = 12),
         axis.ticks = element_line(color="black"),
         plot.title = element_text(hjust = 0.5))
+
 
 ##########################################################################################
 ## taxon models ##

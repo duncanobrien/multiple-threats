@@ -80,7 +80,10 @@ mod_dat_full <- pops %>%
   slice(1:max(which(!is.na(y))))  %>% #remove lagging years containing all NAs (to prevent unbounded interpolation)
   mutate(scaled_time = scales::rescale(year), #rescale start/end of time series between [0-1] for comparability
          time = seq_along(year),
-         y_centered = y-(na.omit(y)[1]-0)) %>% #set first value of timeseries to 0 to allow no intercept model
+         y_centered = log(y/max(na.omit(y))),
+         y_centered = y-(na.omit(y)[1]-0)
+         ) %>% #set first value of timeseries to 0 to allow no intercept model
+  #divide by maximise
   ungroup(ID) %>%
   as.data.frame()
 
@@ -93,19 +96,34 @@ test_data2 <-  mod_dat_full %>%
          scaled_time = scales::rescale(year)) %>%
   ungroup()
 
+test_data3 <-  mod_dat_full %>% 
+  drop_na(y) %>%
+  #filter(series %in% base::sample(unique(series),500)) %>%
+  mutate(threats = as.character(threats)) %>%
+  group_by(ID) %>%
+  mutate(centered_year = year-min(year-1), #set first year with data to year 1
+         scaled_time = c(scale(year,center = TRUE,scale = FALSE))) %>%
+  ungroup()
+
+#ggplot(subset(test_data3,ID %in% sample(ID,5)),aes(x=scaled_time,y=y_centered,col= factor(ID))) + geom_line()
+
+#why negative y values
+
 ##########################################################################################
 ## simple slopes ##
 ##########################################################################################
 
-mod2 <- brm(bf(y_centered ~  scaled_time*threats + (-1 + time|series) +
-                  (1|SpeciesName) + (1|Realm) - 1
-                ,autocor = ~ar(time = time,gr = series,p=1)
+mod2 <- brm(bf(y_centered ~  #divide by maximum then log, then center first value on 0
+                 scaled_time*threats + #time centered on the mean time 
+                 (-1 + time|series) +
+                  (1|SpeciesName) + (1|Realm) - 1 #include realm/spp as slopes, x intercepts
+                ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
                ),
             data =test_data2, 
             family = gaussian(),
             iter = 2000,
             refresh=100,
-            backend = "cmdstanr",
+            #backend = "cmdstanr",
             chains = 4,
             control=list(adapt_delta=0.975,max_treedepth = 15),
             cores = 4)
@@ -115,18 +133,23 @@ conditional_effects(mod2)
 
 saveRDS(mod2,"Results/models/simple-slopes.RDS")
 
-mod2_coefs <- as.data.frame(simp_slopes)
+mod2b <- brm(bf(y_centered ~  #divide by maximum then log, then center first value on 0
+                 scaled_time*threats + #time centered on the mean time 
+                 (-1 + time|series) +
+                 (1|SpeciesName) + (1|Realm) - 1 #include realm/spp as slopes, x intercepts
+               ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
+               ),
+             data =test_data3, 
+             family = gaussian(),
+             iter = 2000,
+             refresh=100,
+             #backend = "cmdstanr",
+             chains = 4,
+             control=list(adapt_delta=0.975,max_treedepth = 15),
+             cores = 4)
+simp_slopesb <- emmeans::emtrends(mod2b, ~ threats,var = "scaled_time")
+plot(simp_slopesb)
+conditional_effects(mod2b)
 
-ggplot(as.data.frame(mod2_coefs) |>
-         arrange(threats),
-       aes(y = threats, x = scaled_time.trend)) + 
-  geom_pointrange(aes(xmin = lower.HPD, xmax = upper.HPD)) + 
-  geom_vline(xintercept=0) + 
-  ggtitle("simple slopes") + 
-  theme_bw()
-
-mod2 <- readRDS("Results/models/simple-slopes.RDS")
-ggsave("Results/models/pp_check-simple-slopes.pdf",
-       pp_check(mod2),
-       width = 6,height = 4)
+saveRDS(mod2b,"Results/models/simple-slopes_b.RDS")
 
