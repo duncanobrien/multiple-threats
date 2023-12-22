@@ -2,6 +2,9 @@ require(brms)
 require(tidyverse)
 load("Data/LivingPlanetData2.RData")
 
+####################
+# raw data taken from PolCap repository
+####################
 dd_long2 <- dd_long %>%
   group_by(ID) %>%  
   # Calculate population change
@@ -53,7 +56,7 @@ pops <- dd_final %>%
 
 load("Data/SSResults.RData")
 
-pop_data10 <- pop_data %>% 
+pop_data10 <- pop_data %>% # pop10 selected following original repository
   mutate(Year=as.numeric(Year)) %>% 
   group_by(ID) %>% 
   filter(length(unique(Year))>=10) %>%
@@ -66,6 +69,9 @@ pop_data10 <- pop_data %>%
   filter(ID %in% pops$ID) %>%
   distinct()
 
+####################
+# further wrangling in to long format and prepare explanatory variables
+####################
 mod_dat_full <- pops %>%
   pivot_longer(c("1950":"2019"), names_to = "year", values_to = "y") %>%
   mutate(year = as.numeric(year),
@@ -73,14 +79,21 @@ mod_dat_full <- pops %>%
          series = paste(ID), #factor required for autocorrelation estimation
          threats = factor(ifelse(is.na(threats),"none",threats))) %>% #convert stressors to binary
   mutate(threats = fct_relevel(threats, "none")) %>%
-  #filter(!all(is.na(value))) %>%
-  left_join(pop_data10,by = "ID") %>%
-  mutate(across(pollution:none,~ifelse(is.na(.x),0,1))) %>% #convert absence of stress to binary
+  left_join(select(pop_data,c(ID,pollution,habitatl,climatechange,
+                              invasive, exploitation,disease)),
+            multiple = "first",by = "ID") %>% #double check. Currently NOT selected timeseries >= 10 years
+  mutate(none = ifelse(all(is.na(c(pollution,habitatl,climatechange,
+                                   invasive, exploitation,disease))),
+                       "none",NA)) %>%
+  mutate(across(pollution:none,~ifelse(is.na(.x),"0","1"))) %>% #convert absence of stress to binary
   group_by(ID) %>%
   slice(1:max(which(!is.na(y))))  %>% #remove lagging years containing all NAs (to prevent unbounded interpolation)
-  mutate(scaled_time = scales::rescale(year), #rescale start/end of time series between [0-1] for comparability
+  mutate(scaled_year = c(scale(year,center = TRUE,scale = FALSE)), #center time to 0 for each timeseries
          time = seq_along(year),
-         y_centered = y-(na.omit(y)[1]-0)) %>% #set first value of timeseries to 0 to allow no intercept model
+         scaled_time = c(scale(time,center = TRUE,scale = FALSE)),
+         y_centered = log(y/max(na.omit(y))), #rescale y by maximum of timeseries and log
+         y_centered = y-(na.omit(y)[1]-0) #recenter y so that first value of timeseries is 0 (to allow all intercepts to be removed)
+  ) %>% 
   ungroup(ID) %>%
   as.data.frame()
 

@@ -93,18 +93,66 @@ mod_dat_full <- pops %>%
          scaled_time = c(scale(time,center = TRUE,scale = FALSE)),
          y_centered = log(y/max(na.omit(y))), #rescale y by maximum of timeseries and log
          y_centered = y-(na.omit(y)[1]-0) #recenter y so that first value of timeseries is 0 (to allow all intercepts to be removed)
-         ) %>% 
+  ) %>% 
   ungroup(ID) %>%
   as.data.frame()
 
+test_data3 <-  mod_dat_full %>% 
+  drop_na(y) %>%
+  #filter(series %in% base::sample(unique(series),500)) %>%
+  mutate(threats = as.character(threats)) 
+
+ggplot(subset(test_data3,ID %in% sample(ID,5)),aes(x=scaled_time,y=y_centered,col= factor(ID))) + geom_line()
+
+#why negative y values
+
+##########################################################################################
+## Duncan first attempt interactive vs additive ##
+##########################################################################################
+intvadd_data <- test_data3 %>%
+  dplyr::mutate(n_threats = case_when(
+                  n.threat == 0 ~ "Additive",
+                  n.threat == 1 ~ "Additive",
+                  TRUE ~ "Interactive"
+                ),
+                across(pollution:none,~as.factor(.x)))
+                
+
+mod_intvadd <- brm(bf(y_centered ~  #divide by maximum then log, then center first value on 0
+                        scaled_year*habitatl*n_threats +
+                        scaled_year*climatechange*n_threats +
+                        scaled_year*invasive*n_threats +
+                        scaled_year*exploitation*n_threats +
+                        scaled_year*disease*n_threats + #time centered on the mean time 
+                  (-1 + scaled_time|series) +
+                  #(-1 + scaled_time|SpeciesName) + 
+                    #(-1 + scaled_time|Realm) 
+                  - 1 #include realm/spp as slopes, x intercepts
+                ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
+                ),
+             data = subset(intvadd_data,ID %in% sample(ID,150)), 
+             family = gaussian(),
+             iter = 2000,
+             refresh=100,
+             #backend = "cmdstanr",
+             chains = 4,
+             control=list(adapt_delta=0.975,max_treedepth = 15),
+             cores = 4)
+
+saveRDS(mod_intvadd,"Results/models/simple-slopes-intvadd.RDS")
+
+
+##########################################################################################
+## Tom suggestion interactive vs additive ##
+##########################################################################################
 thrts_2 <-combn(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),2) #create all unique two way combinations of threats
 thrts_3 <-combn(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),3) 
 
 test_data2 <-  mod_dat_full %>% 
   drop_na(y) #double check how to deal with infrequently sampled timeseries. Current model is able to deal via the ar process
-  #filter(series %in% base::sample(unique(series),500)) %>%
+#filter(series %in% base::sample(unique(series),500)) %>%
 
-test_data3 <- test_data2 %>%
+intvadd_dat2 <- test_data2 %>%
   bind_cols(purrr::pmap_dfc(.l = list(.x = thrts_2[1,], #threat 1
                                       .y = thrts_2[2,]),#threat 2
                             ~ test_data2 %>%
@@ -112,7 +160,9 @@ test_data3 <- test_data2 %>%
                               mutate(!!sym(paste(.x,.y,sep=".")) :=  
                                        ifelse(all(!!sym(.x) == "1") & all(!!sym(.y) == "1"),"1","0"),
                                      .by = ID) %>% #dynamically create new column of whether both threat 1 and threat 2 are 1's
-                              select(4))) %>%
+                              select(4))%>%
+              select_if(function(x)sum(x == "1") > 0) #drop columns where no observed combination of threats
+            ) %>%
   bind_cols(purrr::pmap_dfc(.l = list(thrts_3[1,], #threat 1
                                       thrts_3[2,], #threat 2
                                       thrts_3[3,]),#threat 3
@@ -121,34 +171,45 @@ test_data3 <- test_data2 %>%
                               mutate(!!sym(paste(.x,.y,.z,sep=".")) :=  
                                        ifelse(all(!!sym(.x) == "1") & all(!!sym(.y) == "1") & all(!!sym(.z) == "1"),"1","0"),
                                      .by = ID) %>% #dynamically create new column of whether both threat 1, threat 2 and threat 3 are 1's
-                              select(5)))
+                              select(5)) %>%
+              select_if(function(x)sum(x == "1") > 0) #drop columns where no observed combination of threats
+            ) 
 
-ggplot(subset(test_data2,ID %in% sample(ID,5)),aes(x=scaled_time,y=y_centered,col= factor(ID))) + geom_line()
-#why negative y values
-
-##########################################################################################
-## simple slopes ##
-##########################################################################################
-
-mod2b <- brm(bf(y_centered ~  #divide by maximum then log, then center first value on 0
-                  scaled_year*threats + #time centered on the mean time 
-                 (-1 + scaled_time|series) +
-                 (-1 + scaled_time|SpeciesName) + 
-                  (-1 + scaled_time|Realm) 
-                - 1 #include realm/spp as slopes, x intercepts
-               ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
-               ),
-             data =test_data3, 
-             family = gaussian(),
-             iter = 2000,
-             refresh=100,
-             #backend = "cmdstanr",
-             chains = 4,
-             control=list(adapt_delta=0.975,max_treedepth = 15),
-             cores = 4)
-conditional_effects(mod2b)
-
-saveRDS(mod2b,"Results/models/simple-slopes_b.RDS")
+mod_intvadd2 <- brm(bf(y_centered ~  #divide by maximum then log, then center first value on 0
+                        scaled_year*habitatl + scaled_year*climatechange + 
+                         scaled_year*invasive + scaled_year*exploitation +
+                         scaled_year*disease + scaled_year*pollution.habitatl +
+                         scaled_year*pollution.climatechange + scaled_year*pollution.invasive +                
+                         scaled_year*pollution.exploitation + scaled_year*pollution.disease +                
+                         scaled_year*habitatl.climatechange + scaled_year*habitatl.invasive +                
+                         scaled_year*habitatl.exploitation + scaled_year*habitatl.disease +                 
+                         scaled_year*climatechange.invasive  + scaled_year*climatechange.exploitation +      
+                         scaled_year*climatechange.disease  +  scaled_year*invasive.exploitation +           
+                         scaled_year*invasive.disease + scaled_year*exploitation.disease +         
+                         scaled_year*pollution.habitatl.climatechange + scaled_year*pollution.habitatl.invasive +     
+                         scaled_year*pollution.habitatl.exploitation + scaled_year*pollution.habitatl.disease +     
+                         scaled_year*pollution.climatechange.invasive + scaled_year*pollution.climatechange.exploitation +
+                         scaled_year*pollution.climatechange.disease + 
+                         scaled_year*pollution.exploitation.disease + 
+                         scaled_year*habitatl.climatechange.invasive + scaled_year*habitatl.climatechange.exploitation +
+                         scaled_year*habitatl.climatechange.disease + scaled_year*habitatl.invasive.exploitation +  
+                         scaled_year*habitatl.invasive.disease + scaled_year*habitatl.exploitation.disease +   
+                         scaled_year*climatechange.invasive.exploitation + scaled_year*climatechange.invasive.disease +   
+                         scaled_year*invasive.exploitation.disease +
+                           (-1 + scaled_time|series) +
+                        #(-1 + scaled_time|SpeciesName) + 
+                        #(-1 + scaled_time|Realm) 
+                        - 1 #include realm/spp as slopes, x intercepts
+                      ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
+                      ),
+                   data = intvadd_dat2, 
+                   family = gaussian(),
+                   iter = 2000,
+                   refresh=100,
+                   #backend = "cmdstanr",
+                   chains = 4,
+                   control=list(adapt_delta=0.975,max_treedepth = 15),
+                   cores = 4)
 
 mod2_draws <- emmeans::emtrends(mod2b, ~ threats,var = "scaled_time") |>
   tidybayes::gather_emmeans_draws() |>
@@ -158,23 +219,3 @@ mod2_draws <- emmeans::emtrends(mod2b, ~ threats,var = "scaled_time") |>
   dplyr::mutate(.variable = factor(.variable),
                 .variable = fct_relevel(.variable,"None")) |>
   tidybayes::median_qi(.width = c(.95, .8, .5))
-
-ggplot(mod2_draws,aes(y = .variable, x = .value)) +
-  geom_vline(xintercept = 0, linetype = "dashed", colour="grey50") +
-  tidybayes::geom_pointinterval(aes(xmin = .lower, xmax = .upper),interval_size_range = c(0.8, 2)) +
-  labs(x="Coefficient", y = "Threat") + 
-  scale_y_discrete(limits = rev(levels(mod2_draws$.variable))) + 
-   theme_minimal()+
-  theme(axis.title.x = element_text(size=12,
-                                    margin = margin(t = 10, r = 0, b = 0, l = 0)), 
-        axis.title.y = element_text(size=12,
-                                    margin = margin(t = 0, r = 10, b = 0, l = 0)),
-        axis.line.x = element_line(color="black", linewidth = 0.5),
-        axis.line.y = element_line(color="black", linewidth = 0.5),
-        panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        axis.text.x = element_text(color="black", size = 12),
-        axis.text.y = element_text(color="black", size = 12),
-        strip.text.x = element_text(size = 12),
-        axis.ticks = element_line(color="black"),
-        plot.title = element_text(hjust = 0.5))
