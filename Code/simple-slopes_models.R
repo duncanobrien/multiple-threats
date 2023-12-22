@@ -150,7 +150,7 @@ conditional_effects(mod2b)
 
 saveRDS(mod2b,"Results/models/simple-slopes_b.RDS")
 
-mod2_draws <- emmeans::emtrends(mod2b, ~ threats,var = "scaled_time") |>
+mod2_draws <- emmeans::emtrends(mod2b, ~ threats,var = "scaled_year") |>
   tidybayes::gather_emmeans_draws() |>
   dplyr::rename(.variable = threats) |>
   dplyr::mutate(.variable =  gsub("Invasive spp/genes","Invasive species",.variable),

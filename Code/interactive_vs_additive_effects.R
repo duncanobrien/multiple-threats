@@ -211,11 +211,6 @@ mod_intvadd2 <- brm(bf(y_centered ~  #divide by maximum then log, then center fi
                    control=list(adapt_delta=0.975,max_treedepth = 15),
                    cores = 4)
 
-mod2_draws <- emmeans::emtrends(mod2b, ~ threats,var = "scaled_time") |>
-  tidybayes::gather_emmeans_draws() |>
-  dplyr::rename(.variable = threats) |>
-  dplyr::mutate(.variable =  gsub("Invasive spp/genes","Invasive species",.variable),
-                .variable =  gsub("none","None",.variable)) |>
-  dplyr::mutate(.variable = factor(.variable),
-                .variable = fct_relevel(.variable,"None")) |>
-  tidybayes::median_qi(.width = c(.95, .8, .5))
+mod_intvadd2_draws <- emmeans::emtrends(mod_intvadd2,var = "scaled_year") |>
+  tidybayes::gather_emmeans_draws() 
+
