@@ -2,6 +2,11 @@ require(brms)
 require(tidyverse)
 load("Data/LivingPlanetData2.RData")
 
+priors <- c(prior(normal(0, 1), class = b),
+            prior(exponential(1), class = sd),
+            #prior(exponential(1), class = sigma),
+            prior(normal(0,0.25), class = ar))
+
 ####################
 # raw data taken from PolCap repository
 ####################
@@ -175,42 +180,53 @@ intvadd_dat2 <- test_data2 %>%
               select_if(function(x)sum(x == "1") > 0) #drop columns where no observed combination of threats
             ) 
 
-mod_intvadd2 <- brm(bf(y_centered ~  #divide by maximum then log, then center first value on 0
-                        scaled_year*habitatl + scaled_year*climatechange + 
-                         scaled_year*invasive + scaled_year*exploitation +
-                         scaled_year*disease + scaled_year*pollution.habitatl +
-                         scaled_year*pollution.climatechange + scaled_year*pollution.invasive +                
-                         scaled_year*pollution.exploitation + scaled_year*pollution.disease +                
-                         scaled_year*habitatl.climatechange + scaled_year*habitatl.invasive +                
-                         scaled_year*habitatl.exploitation + scaled_year*habitatl.disease +                 
-                         scaled_year*climatechange.invasive  + scaled_year*climatechange.exploitation +      
-                         scaled_year*climatechange.disease  +  scaled_year*invasive.exploitation +           
-                         scaled_year*invasive.disease + scaled_year*exploitation.disease +         
-                         scaled_year*pollution.habitatl.climatechange + scaled_year*pollution.habitatl.invasive +     
-                         scaled_year*pollution.habitatl.exploitation + scaled_year*pollution.habitatl.disease +     
-                         scaled_year*pollution.climatechange.invasive + scaled_year*pollution.climatechange.exploitation +
-                         scaled_year*pollution.climatechange.disease + 
-                         scaled_year*pollution.exploitation.disease + 
-                         scaled_year*habitatl.climatechange.invasive + scaled_year*habitatl.climatechange.exploitation +
-                         scaled_year*habitatl.climatechange.disease + scaled_year*habitatl.invasive.exploitation +  
-                         scaled_year*habitatl.invasive.disease + scaled_year*habitatl.exploitation.disease +   
-                         scaled_year*climatechange.invasive.exploitation + scaled_year*climatechange.invasive.disease +   
-                         scaled_year*invasive.exploitation.disease +
-                           (-1 + scaled_time|series) +
-                        #(-1 + scaled_time|SpeciesName) + 
-                        #(-1 + scaled_time|Realm) 
-                        - 1 #include realm/spp as slopes, x intercepts
+intvadd_dat3 <- subset(intvadd_dat2,ID %in% sample(ID,100)) %>%
+  select_if(function(x)!all(x == "0"))
+
+intvadd_dat3 <-intvadd_dat2 %>%
+  group_by(ID) %>% 
+  filter(length(unique(year))>=10) %>%
+  ungroup() %>%
+  select_if(function(x)!all(x == "0"))
+  
+rhs <- paste0(paste("scaled_year*",colnames(intvadd_dat3)[c(21:26,32:NCOL(intvadd_dat3))],sep ="",collapse = " + "),
+             " + (-1 + scaled_year|series) + -1")
+form <- as.formula(paste("y_centered", "~", rhs))
+
+mod_intvadd2 <- brm(bf(form #include realm/spp as slopes, x intercepts
                       ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
                       ),
-                   data = intvadd_dat2, 
+                   data = intvadd_dat3, 
                    family = gaussian(),
-                   iter = 2000,
+                   iter = 8000,
                    refresh=100,
-                   #backend = "cmdstanr",
+                   backend = "cmdstanr",
+                   prior = priors,
                    chains = 4,
-                   control=list(adapt_delta=0.975,max_treedepth = 15),
+                   control=list(adapt_delta=0.975,max_treedepth = 10),
                    cores = 4)
+saveRDS(mod_intvadd2,"Results/models/simple-slopes-intvadd2.RDS")
 
-mod_intvadd2_draws <- emmeans::emtrends(mod_intvadd2,var = "scaled_year") |>
+mod_intvadd2_draws <- emmeans::emtrends(mod_intvadd2,var = "scaled_year"
+                                        #,rg.limit = 55000
+                                        ) |>
   tidybayes::gather_emmeans_draws() 
+
+threatcols <- colnames(intvadd_dat3)[c(21:26,32:NCOL(intvadd_dat3))]
+newdata <- data.frame(scaled_year = seq(min(intvadd_dat3$scaled_year),max(intvadd_dat3$scaled_year),by=1),
+                      series = NA)
+selcols <- threatcols[grepl("pollution",threatcols)]
+nullcols <- threatcols[!grepl("pollution",threatcols)]
+newdata <- cbind(newdata, setNames(lapply(selcols, function(x) x=factor("1",levels = c("0","1"))), selcols))
+newdata <- cbind(newdata, setNames(lapply(nullcols, function(x) x=factor("0",levels = c("0","1"))), nullcols)) %>%
+  mutate(time = seq_along(scaled_year))
+
+postdraws_pollution <- posterior_epred(mod_intvadd2,
+                      newdata =  newdata) %>%
+  as.data.frame() %>%
+  pivot_longer(everything(),names_to = ".draw",values_to = ".value",
+               names_transform = function(x){as.numeric(gsub("V","",x))}) %>%
+  cbind(newdata)
+  
+
 
