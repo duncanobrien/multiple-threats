@@ -1,7 +1,7 @@
 #' Extract posterior predictions for each threat/threat combination
 #'
 #' @param model The fitted brms model object.
-#' @param modelled_data String. Variable name of the trend variable.
+#' @param modelled_data data.frame containing the data modelled by `model`.
 #' @param threat_comns String. Vector of threats to extract posterior predictions for. Options include: single string of known threat (e.g. `"climatechange", "pollution.habitatl","climatechange.invasive.exploitation"`) which sets all individual threats and their combinatorial factor to `1` (synergisms), a combination of threats (e.g. `"climatechange + invasive"`, `"invasive + habitatl + disease"`) which only includes the singular threats (additive effect), or `"none"` which sets all threats to `0`, 
 #' @param ... Additional arguments to pass to `prep_data_grid()`.
 #' @returns A data.frame containing posterior timeseries for the desired threat subsets.
@@ -12,23 +12,24 @@
 source("Code/prep_data_grid_fn.R")
 threat_post_draws <- function(model, modelled_data, threat_comns,...){
   
-  out <- do.call("rbind",lapply(threat_comns,function(x){
-    
-    nw_data <- prep_data_grid(data = modelled_data,
-                              threat = x,
-                              ...) %>%
-      mutate(threat = x)
-    
-    brms::posterior_epred(model,
-                          newdata = nw_data,
-                          re.form = NA) %>%
-      as.data.frame() %>%
-      dplyr::mutate(.draw = 1:NROW(.)) %>%
-      tidyr::pivot_longer(-".draw",names_to = ".timepoint",values_to = ".value",
-                          names_transform = function(x){as.numeric(gsub("V","",x))}) %>%
-      cbind(nw_data)
-    
-  }))
+  out <- do.call("rbind",
+                 lapply(threat_comns,function(x){ #for each threat/combination of threats in `threat_comns`
+                   
+                   nw_data <- prep_data_grid(data = modelled_data,
+                                             threat = x,
+                                             ...) %>% #generate the data grid
+                     mutate(threat = x) #name the data grid
+                   
+                   brms::posterior_epred(model,
+                                         newdata = nw_data,
+                                         re.form = NA) %>% #extract posterior draws for the above data grid
+                     as.data.frame() %>%
+                     dplyr::mutate(.draw = 1:NROW(.)) %>% #label the draw
+                     tidyr::pivot_longer(-".draw",names_to = ".timepoint",values_to = ".value",
+                                         names_transform = function(x){as.numeric(gsub("V","",x))}) %>% #pivot in to long format (ggdist friendly) and tidy up colum names
+                     cbind(nw_data) #bind the data grid for completeness
+                   
+                 })) #all threat combinations are rbound together
   
-  return(out)
+  return(out) 
 }

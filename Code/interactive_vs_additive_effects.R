@@ -151,13 +151,13 @@ saveRDS(mod_intvadd,"Results/models/simple-slopes-intvadd.RDS")
 ## Tom suggestion interactive vs additive ##
 ##########################################################################################
 thrts_2 <-combn(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),2) #create all unique two way combinations of threats
-thrts_3 <-combn(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),3) 
+thrts_3 <-combn(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),3) #create all unique three way combinations of threats
 
 test_data2 <-  mod_dat_full %>% 
   drop_na(y) #double check how to deal with infrequently sampled timeseries. Current model is able to deal via the ar process
 #filter(series %in% base::sample(unique(series),500)) %>%
 
-intvadd_dat2 <- test_data2 %>%
+intvadd_dat2 <- test_data2 %>% #create a new dataframe with columns containing "0"/"1" for each combination of threats. "0" = combination not present, "1" = combination present
   bind_cols(purrr::pmap_dfc(.l = list(.x = thrts_2[1,], #threat 1
                                       .y = thrts_2[2,]),#threat 2
                             ~ test_data2 %>%
@@ -166,7 +166,7 @@ intvadd_dat2 <- test_data2 %>%
                                        ifelse(all(!!sym(.x) == "1") & all(!!sym(.y) == "1"),"1","0"),
                                      .by = ID) %>% #dynamically create new column of whether both threat 1 and threat 2 are 1's
                               select(4))%>%
-              select_if(function(x)sum(x == "1") > 0) #drop columns where no observed combination of threats
+              select_if(function(x)sum(x == "1") > 0) #drop columns where no observed combination of threats as will prevent model fitting
             ) %>%
   bind_cols(purrr::pmap_dfc(.l = list(thrts_3[1,], #threat 1
                                       thrts_3[2,], #threat 2
@@ -185,7 +185,7 @@ intvadd_dat2 <- test_data2 %>%
 
 intvadd_dat3 <-intvadd_dat2 %>%
   group_by(ID) %>% 
-  filter(length(unique(year))>=10) %>%
+  filter(length(unique(year))>=10) %>% #filter to timeseries > 10 time points
   ungroup() %>%
   select_if(function(x)!all(x == "0"))
   
@@ -195,8 +195,8 @@ rhs <- paste0(paste("scaled_year*",
                                   collapse = "|"),
                             colnames(intvadd_dat3))],
                     sep ="",collapse = " + "),
-             " + (-1 + scaled_year|series) + -1")
-form <- as.formula(paste("y_centered", "~", rhs))
+             " + (-1 + scaled_year|series) + -1") #create the right hand side of the model formula with interactions between scaled_year and all threat combinations
+form <- as.formula(paste("y_centered", "~", rhs)) #combine y_centered and rhs into a model formula
 
 mod_intvadd2 <- brm(bf(form #include realm/spp as slopes, x intercepts
                       ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
@@ -218,8 +218,9 @@ source("Code/threat_post_draws.R")
 postdraws_pollution <- threat_post_draws(model = mod_intvadd2,
                   modelled_data = intvadd_dat3,
                   threat_comns = c("none","pollution","climatechange","pollution.climatechange","pollution + climatechange"))
+#for each of the `threat_comns`, extract posterior draws for the appropriate data grid.
 
-ggplot(subset(postdraws_pollution,
+ggplot(subset(postdraws_pollution, #example posterior timeseries draws
               .draw %in% sample(.draw,150)) ,aes(x = scaled_year,y=.value,group = .draw)) +
   geom_path(alpha = 0.1) + facet_wrap(~threat,scales = "free_y") + theme_bw()
 
@@ -229,7 +230,7 @@ post_dydx <- postdraws_pollution %>%
 dydx_interval <- post_dydx  %>%
   mutate(.chain = 1, .iteration = .draw) %>% #add additional columns required by ggdist
   group_by(threat) %>%
-  ggdist::median_qi(.width = c(.95, .8, .5))
+  ggdist::median_qi(.width = c(.95, .8, .5)) #extract distribution information
 
 ggplot(data = post_dydx, aes(x = .value,y=threat)) +
   tidybayes::stat_slab(alpha=0.5) +
