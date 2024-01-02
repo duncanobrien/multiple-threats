@@ -189,7 +189,12 @@ intvadd_dat3 <-intvadd_dat2 %>%
   ungroup() %>%
   select_if(function(x)!all(x == "0"))
   
-rhs <- paste0(paste("scaled_year*",colnames(intvadd_dat3)[c(21:26,32:NCOL(intvadd_dat3))],sep ="",collapse = " + "),
+rhs <- paste0(paste("scaled_year*",
+                    colnames(intvadd_dat3)[
+                      grepl(paste(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),
+                                  collapse = "|"),
+                            colnames(intvadd_dat3))],
+                    sep ="",collapse = " + "),
              " + (-1 + scaled_year|series) + -1")
 form <- as.formula(paste("y_centered", "~", rhs))
 
@@ -206,11 +211,40 @@ mod_intvadd2 <- brm(bf(form #include realm/spp as slopes, x intercepts
                    control=list(adapt_delta=0.975,max_treedepth = 10),
                    cores = 4)
 saveRDS(mod_intvadd2,"Results/models/simple-slopes-intvadd2.RDS")
+mod_intvadd2 <- readRDS("Results/models/simple-slopes-intvadd2.RDS")
 
-mod_intvadd2_draws <- emmeans::emtrends(mod_intvadd2,var = "scaled_year"
+tt <- subset(newdata,scaled_year %in% c(-5,0,5)) 
+tt <- subset(newdata,scaled_year %in% c(10)) 
+
+threat_prep <- function(data,trend = "scaled_year",
+                        threat,
+                        all_threats = c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),
+                        nuisance = c("series")){
+  
+  threatcols <- colnames(data)[grepl(paste(all_threats,collapse = "|"),colnames(data))]
+  newdata <- data.frame(tr = seq(min(data[[trend]]),max(data[[trend]]),by=1)) %>%
+    select(!!sym(trend) := tr)
+  newdata <- cbind(newdata,setNames(lapply(nuisance, function(x){x=NA}), nuisance))
+  
+  selcols <- threatcols[grepl("pollution",threatcols)]
+  nullcols <- threatcols[!grepl("pollution",threatcols)]
+  newdata <- cbind(newdata, setNames(lapply(selcols, function(x){x=factor("1",levels = c("0","1"))}), selcols))
+  newdata <- cbind(newdata, setNames(lapply(nullcols, function(x){x=factor("0",levels = c("0","1"))}), nullcols)) %>%
+    mutate(time = seq_along(scaled_year))
+  
+  return(newdata)
+  
+}
+
+mod_intvadd2_draws <- emmeans::emtrends(mod_intvadd2,var = "scaled_year",
                                         #,rg.limit = 55000
-                                        ) |>
-  tidybayes::gather_emmeans_draws() 
+                                        specs = colnames(tt)[grepl("pollution",colnames(tt))],
+                                        at = tt) |>
+  tidybayes::gather_emmeans_draws() %>%
+  tidybayes::median_qi(.width = c(.95, .8, .5))
+
+ggplot(mod_intvadd2_draws,aes(x=.value)) +
+  tidybayes::geom_pointinterval(aes(xmin = .lower, xmax = .upper),interval_size_range = c(0.8, 2)) 
 
 threatcols <- colnames(intvadd_dat3)[c(21:26,32:NCOL(intvadd_dat3))]
 newdata <- data.frame(scaled_year = seq(min(intvadd_dat3$scaled_year),max(intvadd_dat3$scaled_year),by=1),
@@ -224,9 +258,12 @@ newdata <- cbind(newdata, setNames(lapply(nullcols, function(x) x=factor("0",lev
 postdraws_pollution <- posterior_epred(mod_intvadd2,
                       newdata =  newdata) %>%
   as.data.frame() %>%
+  mutate(post_series = )
   pivot_longer(everything(),names_to = ".draw",values_to = ".value",
                names_transform = function(x){as.numeric(gsub("V","",x))}) %>%
-  cbind(newdata)
+  cbind(newdata) %>%
+  mutate()
   
+kk <- subset(postdraws_pollution, .draw == 1)
 
-
+plot()
