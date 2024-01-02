@@ -2,6 +2,11 @@ require(brms)
 require(tidyverse)
 load("Data/LivingPlanetData2.RData")
 
+priors <- c(prior(normal(0, 1), class = b),
+            prior(exponential(1), class = sd),
+            #prior(exponential(1), class = sigma),
+            prior(normal(0,0.25), class = ar))
+
 ####################
 # raw data taken from PolCap repository
 ####################
@@ -91,7 +96,7 @@ mod_dat_full <- pops %>%
   mutate(scaled_year = c(scale(year,center = TRUE,scale = FALSE)), #center time to 0 for each timeseries
          time = seq_along(year),
          scaled_time = c(scale(time,center = TRUE,scale = FALSE)),
-         y_centered = log(y/max(na.omit(y))), #rescale y by maximum of timeseries and log
+         #y_centered = log(y/max(na.omit(y))), #rescale y by maximum of timeseries and log
          y_centered = y-(na.omit(y)[1]-0) #recenter y so that first value of timeseries is 0 (to allow all intercepts to be removed)
          ) %>% 
   ungroup(ID) %>%
@@ -132,9 +137,9 @@ ggplot(subset(test_data2,ID %in% sample(ID,5)),aes(x=scaled_time,y=y_centered,co
 
 mod2b <- brm(bf(y_centered ~  #divide by maximum then log, then center first value on 0
                   scaled_year*threats + #time centered on the mean time 
-                 (-1 + scaled_time|series) +
-                 (-1 + scaled_time|SpeciesName) + 
-                  (-1 + scaled_time|Realm) 
+                 (-1 + scaled_year|series) +
+                 (-1 + scaled_year|SpeciesName) + 
+                  (-1 + scaled_year|Realm) 
                 - 1 #include realm/spp as slopes, x intercepts
                ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
                ),

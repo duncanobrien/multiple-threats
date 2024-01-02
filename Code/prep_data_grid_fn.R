@@ -15,23 +15,34 @@ prep_data_grid <- function(data,
                            nuisance = c("series")){
   
   threatcols <- colnames(data)[grepl(paste(all_threats,collapse = "|"),colnames(data))]
-  if(!threat %in% threatcols){
-    stop(paste(threat,"not in modelled data"))
-  }
   
   newdata <- data.frame(tr = seq(min(data[[trend]]),max(data[[trend]]),by=1)) %>%
     select(!!sym(trend) := tr)
   newdata <- cbind(newdata,setNames(lapply(nuisance, function(x){x=NA}), nuisance))
   
-  thrts <-unlist(strsplit(threat,"[.]"))
-  if(length(thrts) > 1){
-    thrts <- c(thrts,combn(thrts,2,FUN = function(x){paste(x,collapse = ".")}),threat)
-  }
+  if(threat == "none"){
+    selcols <- ""
+    nullcols <- threatcols
+  }else{
+    if(grepl("+",threat)){
+      thrts <- trimws(unlist(strsplit(threat,"\\+")))
+    }else{
+      if(!threat %in% threatcols){
+        stop(paste(threat,"not in modelled data"))
+      }
+      thrts <-unlist(strsplit(threat,"[.]"))
+      
+      if(length(thrts) > 1){
+        thrts <- c(thrts,combn(thrts,2,FUN = function(x){paste(x,collapse = ".")}),threat)
+      }
+    }
+
   thrts <- paste0("^",unique(thrts),"$")
   selcols <- threatcols[grepl(paste0(thrts,collapse = "|"),threatcols)]
   nullcols <- threatcols[!grepl(paste0(thrts,collapse = "|"),threatcols)]
   
   newdata <- cbind(newdata, setNames(lapply(selcols, function(x){x=factor("1",levels = c("0","1"))}), selcols))
+  }
   newdata <- cbind(newdata, setNames(lapply(nullcols, function(x){x=factor("0",levels = c("0","1"))}), nullcols)) %>%
     mutate(time = seq_along(scaled_year))
   

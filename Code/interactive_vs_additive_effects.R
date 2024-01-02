@@ -96,7 +96,7 @@ mod_dat_full <- pops %>%
   mutate(scaled_year = c(scale(year,center = TRUE,scale = FALSE)), #center time to 0 for each timeseries
          time = seq_along(year),
          scaled_time = c(scale(time,center = TRUE,scale = FALSE)),
-         y_centered = log(y/max(na.omit(y))), #rescale y by maximum of timeseries and log
+         #y_centered = log(y/max(na.omit(y))), #rescale y by maximum of timeseries and log
          y_centered = y-(na.omit(y)[1]-0) #recenter y so that first value of timeseries is 0 (to allow all intercepts to be removed)
   ) %>% 
   ungroup(ID) %>%
@@ -216,16 +216,24 @@ mod_intvadd2 <- readRDS("Results/models/simple-slopes-intvadd2.RDS")
 
 source("Code/prep_data_grid_fn.R")
 kk <- prep_data_grid(data = intvadd_dat3,
-            threat = "pollution.climatechange.invasive") %>%
-  mutate(threat = "pollution.climatechange.invasive") 
+            threat = "pollution.climatechange") %>%
+  mutate(threat = "pollution:climatechange") 
 
 ll <- prep_data_grid(data = intvadd_dat3,
                      threat = "pollution") %>%
   mutate(threat = "pollution") 
 
-jj <- prep_data_grid(data = intvadd_dat3,
+mm <- prep_data_grid(data = intvadd_dat3,
+                     threat = "pollution + climatechange") %>%
+  mutate(threat = "pollution + climatechange") 
+
+nn <- prep_data_grid(data = intvadd_dat3,
                      threat = "climatechange") %>%
-  mutate(threat = "climatechange")
+  mutate(threat = "climatechange") 
+
+jj <- prep_data_grid(data = intvadd_dat3,
+                     threat = "none") %>%
+  mutate(threat = "none")
 
 mod_intvadd2_draws <- emmeans::emtrends(mod_intvadd2,
                                         var = "scaled_year",
@@ -256,6 +264,22 @@ postdraws_pollution <- posterior_epred(mod_intvadd2,
                names_transform = function(x){as.numeric(gsub("V","",x))}) %>%
   cbind(ll)) %>%
   rbind(posterior_epred(mod_intvadd2,
+                        newdata =  mm,
+                        re.form = NA) %>%
+          as.data.frame() %>%
+          mutate(.draw = 1:NROW(.)) %>%
+          pivot_longer(-".draw",names_to = ".timepoint",values_to = ".value",
+                       names_transform = function(x){as.numeric(gsub("V","",x))}) %>%
+          cbind(mm)) %>%
+  rbind(posterior_epred(mod_intvadd2,
+                        newdata =  nn,
+                        re.form = NA) %>%
+          as.data.frame() %>%
+          mutate(.draw = 1:NROW(.)) %>%
+          pivot_longer(-".draw",names_to = ".timepoint",values_to = ".value",
+                       names_transform = function(x){as.numeric(gsub("V","",x))}) %>%
+          cbind(nn)) %>%
+  rbind(posterior_epred(mod_intvadd2,
                         newdata =  jj,
                         re.form = NA) %>%
           as.data.frame() %>%
@@ -265,5 +289,5 @@ postdraws_pollution <- posterior_epred(mod_intvadd2,
           cbind(jj))
 
 ggplot(subset(postdraws_pollution,
-              .draw == sample(.draw,50)) ,aes(x = scaled_year,y=.value,group = .draw)) +
-  geom_path(alpha = 0.1) + facet_wrap(~threat) + theme_bw()
+              .draw %in% sample(.draw,150)) ,aes(x = scaled_year,y=.value,group = .draw)) +
+  geom_path(alpha = 0.1) + facet_wrap(~threat,scales = "free_y") + theme_bw()
