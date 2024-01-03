@@ -215,42 +215,90 @@ mod_intvadd2 <- readRDS("Results/models/simple-slopes-intvadd2.RDS")
 
 source("Code/prep_data_grid_fn.R")
 source("Code/threat_post_draws.R")
-postdraws_pollution <- threat_post_draws(model = mod_intvadd2,
-                  modelled_data = intvadd_dat3,
-                  threat_comns = c("none","pollution","climatechange","pollution.climatechange","pollution + climatechange"))
-#for each of the `threat_comns`, extract posterior draws for the appropriate data grid.
 
-ggplot(subset(postdraws_pollution, #example posterior timeseries draws
-              .draw %in% sample(.draw,150)) ,aes(x = scaled_year,y=.value,group = .draw)) +
-  geom_path(alpha = 0.1) + facet_wrap(~threat,scales = "free_y") + theme_bw()
+all_threats = c("pollution","habitatl","climatechange","invasive", "exploitation","disease")
 
-post_dydx <- postdraws_pollution %>%
-  reframe(.value = mean(diff(.value)/diff(time)),.by = c(.draw,threat)) #average derivative across drawn timeseries
+threatcols <- colnames(intvadd_dat3)[grepl(paste(all_threats,collapse = "|"),colnames(intvadd_dat3))] 
 
-dydx_interval <- post_dydx  %>%
+additive_cols <- do.call("c",lapply(strsplit(threatcols,"[.]"),function(x){
+  paste(x,collapse = " + ")
+  })) #create addtive columns. i.e. "threat1 + threat2"
+
+target_cols <- unique(c(threatcols,additive_cols))
+
+postdraws_intvadd <- threat_post_draws(model = mod_intvadd2,
+                               modelled_data = intvadd_dat3,
+                               threat_comns = target_cols) %>%
+  mutate(combo_group = case_when(
+    grepl("[.]",threat) ~ "interactive",
+    grepl("\\+",threat) ~ "additive",
+    TRUE ~ "single")) #posterior timeseries estimated for each threat combination: singular (e.g. "threat1"), interactive (e.g. "threat1.threat2") and additive (e.g. "threat1 + threat2")
+
+post_dydx_intvadd <- do.call("rbind",lapply(all_threats[1],function(x){
+  
+  out <- postdraws_intvadd %>%
+    subset(grepl(x,threat)) %>% #filter to focal threat
+    reframe(.value = mean(diff(.value)/diff(time)),.by = c(combo_group,threat,.draw)) %>% #estimate each timeseries' first derivative
+    group_by(threat) %>%
+    filter(!any(.value >= abs(0.5))) %>% #drop highly variable threats
+    ungroup() %>%
+    mutate(threat_group = x) 
+  
+  return(out)
+}))
+
+dydx_interval_intvadd <- post_dydx_intvadd  %>%
   mutate(.chain = 1, .iteration = .draw) %>% #add additional columns required by ggdist
-  group_by(threat) %>%
-  ggdist::median_qi(.width = c(.95, .8, .5)) #extract distribution information
+  group_by(threat_group,combo_group,threat) %>%
+  ggdist::median_qi(.width = c(.95, .8, .5),.exclude = c(".chain", ".iteration", ".draw"))  #extract distribution information
 
-ggplot(data = post_dydx, aes(x = .value,y=threat)) +
+ggplot(data = post_dydx_intvadd , 
+       aes(x = .value,y=threat,fill = combo_group)) +
   tidybayes::stat_slab(alpha=0.5) +
-  ggdist::geom_pointinterval(data = dydx_interval,
-                  aes(xmin = .lower, xmax = .upper)) +
+  ggdist::geom_pointinterval(data = dydx_interval_intvadd,
+                             aes(xmin = .lower, xmax = .upper,col = combo_group)) +
   geom_vline(xintercept = 0, linetype = "dashed", colour="grey50") +
-  coord_cartesian(xlim = c(-0.5,0.5)) + 
+  scale_colour_manual(values = c("#F5A433","#8B33F5","#57A06B"), guide = "none") + 
+  scale_fill_manual(values = c("#F5A433","#8B33F5","#57A06B"), guide = "none") + 
   xlab("Population trend") + 
   ylab("Threat") + 
-  theme_minimal()+
-  theme(axis.title.x = element_text(size=12,
-                                    margin = margin(t = 10, r = 0, b = 0, l = 0)), 
-        axis.title.y = element_text(size=12,
-                                    margin = margin(t = 0, r = 10, b = 0, l = 0)),
-        axis.line.x = element_line(color="black", linewidth = 0.5),
-        axis.line.y = element_line(color="black", linewidth = 0.5),
-        panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        axis.text.x = element_text(color="black", size = 12),
-        axis.text.y = element_text(color="black", size = 12),
-        strip.text.x = element_text(size = 12),
-        axis.ticks = element_line(color="black"),
-        plot.title = element_text(hjust = 0.5))
+  theme_minimal()
+
+post_intvadd_diff <- do.call("rbind",lapply(additive_cols[grepl("\\+",additive_cols)],function(x){
+  
+  post_dydx_intvadd %>%
+    subset(threat %in% c(x,gsub(" \\+ ",".",x))) %>% #subset to shared additive and interactive threats (e.g. "threat1.threat2" and "threat1 + threat2")
+    reframe(.value = .value[2]-.value[1], .by = c(threat_group,.draw)) %>% #find difference in derivatives between additive and interactive threats
+    mutate(threats = gsub(" \\+ ",".",x)) #name threat combination
+  
+  }))
+
+post_interval_intvadd_diff <- post_intvadd_diff %>%
+  na.omit() %>% #drop missing threats 
+  mutate(.chain = 1, .iteration = .draw) %>%
+  group_by(threat_group,threats) %>%
+  ggdist::median_qi(.width = c(.95, .8, .5),.exclude = c(".chain", ".iteration", ".draw")) %>%  #extract distribution information
+  mutate(class = case_when(
+    .upper < 0 ~ "synergistic",
+    .lower > 0 ~ "antagonistic",
+    TRUE ~ "additive"
+  ))
+
+
+ggplot(data = na.omit(post_intvadd_diff), 
+       aes(x = .value,y=threats)) +
+  tidybayes::stat_slab(data = na.omit(post_intvadd_diff) %>%
+                         merge(select(post_interval_intvadd_diff,-.value),
+                               by = c("threat_group","threats")) %>%
+                         subset(.width == 0.8)
+                       ,aes(fill = class),alpha=0.5) +
+  ggdist::geom_pointinterval(data = post_interval_intvadd_diff,
+                             aes(xmin = .lower, xmax = .upper)) +
+  geom_vline(xintercept = 0, linetype = "dashed", colour="grey50") +
+  coord_cartesian(xlim = c(-0.25,0.25)) + 
+  scale_fill_manual(values = c("#694364",
+                               "#B32315",
+                               "#1E63B3"), name = "") + 
+  xlab( expression(paste("Additive ",partialdiff,"y","/",partialdiff,"x"," - interactive ",partialdiff,"y","/",partialdiff,"x"))) + 
+  ylab("Threat combination") + 
+  theme_minimal()
