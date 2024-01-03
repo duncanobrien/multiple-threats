@@ -9,8 +9,9 @@ rm(list=ls(all=TRUE)) #remove everything
 
 # Libraries
 
-require(brms)
-require(tidyverse)
+library(brms)
+library(tidyverse)
+library(tidybayes)
 
 # Conterfactual tests ----------------------------------------------------------
 # Load the model 
@@ -19,7 +20,9 @@ m1 <- read_rds("Results/simple-slopes_b.RDS")
 
 # Extract the data used to build the model
 
-pop_data <- m1$data
+pop_data <- m1$data %>% 
+  mutate(threats = gsub("Invasive spp/genes", "Invasive", threats),
+         n.threats = str_count(threats,"[A-Z]"))
 
 # Obtain the predicted value for each population 
 
@@ -27,21 +30,25 @@ pop_perd <- fitted(m1, scale = "response")
 
 # Edit the data to have the necessary variables and join with data values
 
-pop_perd2 <- pop_perd %>%
+pop_trend <- pop_perd %>%
   as.data.frame() %>% 
-  bind_cols(pop_data[c("threats", "series")]) %>% # Add the threat affecting the population 
-  mutate(number = str_count(threats,"[A-Z]")) # Get the number of threats
-
+  bind_cols(pop_data[c("threats","time","series")]) %>% # Add the threat affecting the population 
+  reframe(mean_trend = mean(diff(Estimate)/diff(time)),
+          .by = c(series, threats)) %>%  # Calculate the mean population trend
+  mutate(number = str_count(threats,"[A-Z]"),# Get the number of threats
+         new_trend=NA) # Create a new column to store the counterfactuals
 
 # Obtain the mean coefficient for each threat 
 
-mus_mean <- m1 %>% 
+mean_trends <- m1 %>% 
   gather_draws(`b_.*`, regex = TRUE) %>%
   mean_qi(.width = .95) %>%
-  mutate(.variable = gsub("b_threats", "", .variable), 
+  mutate(.variable = gsub("b_", "", .variable), 
+         .variable = gsub("threats", "", .variable), 
+         .variable = gsub("scaled_time", "time", .variable),
          .variable = gsub("InvasivesppDgenes", "Invasive", .variable),
          .variable = gsub("Habitatloss", "Habitat loss", .variable),
-         .variable = gsub("Climatechange", "Climate change", .variable),# Create an initial fake population
+         .variable = gsub("Climatechange", "Climate change", .variable),
          number = str_count(.variable,"[A-Z]")) 
 
 # Substract the mean coefficient from the predicted values
@@ -49,7 +56,7 @@ mus_mean <- m1 %>%
 
 # Define the  threats
 
-threats <- unique(pops_data$threats[which(pops_data$n.threat>=1)]) %>% 
+threats <- unique(pop_data$threats[which(pop_data$n.threat>=1)]) %>% 
   as_tibble() %>% 
   mutate(number=str_count(value,"[A-Z]"))
 
@@ -62,169 +69,194 @@ clus  <- makeCluster(detectCores() - 1)
 registerDoSNOW(clus)
 
 # load in the options using .options.snow
-mu_scenarios <- foreach(i = threats$value, 
+trend_scenarios <- foreach(i = threats$value, 
                         .combine = 'rbind',
                         .packages = c("tidyverse", "naniar")) %dopar% {
                           
-                          x <- threats$number[threats$value==i]
+                          # Extract the number of threats
                           
-                          if(x==1){
-                            new <- pop_perd %>% 
-                              filter(grepl(i,threats)) %>% 
-                              mutate(lambda=exp(Estimate-mus_mean$.value[mus_mean$.variable==i])) %>% 
-                              rbind(pop_perd %>% 
+                          number_threats <- threats$number[threats$value==i]
+                          
+                          # If the number of threats is equal to 1
+                          
+                          if(number_threats==1){
+                            # Create a new dataframe were we substract the mean 
+                            # effect of the threats on the population trends 
+                            new <- pop_trend %>% 
+                              filter(grepl(i,threats)) %>% # Filter by the threat
+                              # Substract the mean effect of the single threat
+                              mutate(new_trend=mean_trend-mean_trends$.value[mean_trends$.variable==paste0("time:",i)]) %>% 
+                              # Bind to the previous dataset
+                              rbind(pop_trend %>% 
                                       filter(!grepl(i,threats))) %>% 
+                              # Add the name of the scenario 
+                              mutate(scenario=paste("No", i)) 
+                            
+                            # If the number of threats is equal to 2
+                            
+                            } else if(number_threats==2){
+                              # Split the names of the interacting threats
+                              x2 <- unlist(strsplit(i, 
+                                                    ":", 
+                                                    fixed=T))
+                              # Create a new dataset where we remove the effect
+                              # of the two threats, when interacting together
+                              new1 <- pop_trend %>%
+                                # Filter for those populations exposed to both
+                                # threats
+                                filter(grepl(x2[1],threats), 
+                                       grepl(x2[2],threats), number!=1) %>% 
+                                # Extract the effect of both threats
+                                mutate(new_trend=mean_trend-mean_trends$.value[mean_trends$.variable==paste0("time:",i)])
+                              # Create a second dataset where we remove the effect
+                              # of the first threat, only 
+                              new2 <- pop_trend %>% 
+                                # Filter for the first threat, only those with
+                                # more and less than two threats and that do not
+                                # overlap with the series in new1
+                                filter(grepl(x2[1],threats), 
+                                       number!=2, !grepl(i,threats),
+                                       !series%in%new1$series) %>%
+                                # Substract the effect of the single threat
+                                mutate(new_trend=mean_trend-mean_trends$.value[mean_trends$.variable==paste0("time:",x2[1])]) 
+                              # Same as above but with the second threat
+                              new <- pop_perd %>% 
+                                # Notice we also filer out series in new1 and 
+                                # new2
+                                filter(grepl(x2[2],threats), number!=2,
+                                       !grepl(i,threats), 
+                                       !ID%in%new1$ID,
+                                       !ID%in%new2$ID) %>% 
+                                mutate(new_trend=mean_trend-mean_trends$.value[mean_trends$.variable==paste0("time:",x2[2])])  %>% 
+                                # Bind with new1, new2, and pop_trend
+                                rbind(new1) %>% 
+                                rbind(new2) %>% 
+                              rbind(pop_trend %>% 
+                                      filter(!series%in%new$series)) %>% 
                               mutate(scenario=paste("No", i))
-                          } else if(x==2){
-                            x2 <- unlist(strsplit(i, 
-                                                  ":", 
-                                                  fixed=T))
-                            
-                            new1 <- pop_perd %>% 
-                              filter(grepl(x2[1],threats), 
-                                     grepl(x2[2],threats), number!=1) %>% 
-                              mutate(lambda=exp(Estimate-mus_mean$.value[mus_mean$.variable==i])) 
-                            
-                            new2 <- pop_perd %>% 
-                              filter(grepl(x2[1],threats), 
-                                     number!=2, !grepl(i,threats),
-                                     !ID%in%new1$ID) %>% 
-                              mutate(lambda=exp(Estimate-mus_mean$.value[mus_mean$.variable==x2[1]]))
-                            
-                            new <- pop_perd %>% 
-                              filter(grepl(x2[2],threats), number!=2,
-                                     !grepl(i,threats), 
-                                     !ID%in%new1$ID,
-                                     !ID%in%new2$ID) %>% 
-                              mutate(lambda=exp(Estimate-mus_mean$.value[mus_mean$.variable==x2[2]])) %>% 
-                              rbind(new1) %>% 
-                              rbind(new2)  
-                            
-                            new <- new %>% 
-                              rbind(pop_perd %>% 
-                                      filter(!ID%in%new$ID)) %>% 
-                              mutate(scenario=paste("No", i))
-                          }else if(x==3){
-                            
-                            # Separate the threats 
-                            x3 <- unlist(strsplit(i, 
-                                                  ":", 
-                                                  fixed=T))
-                            
-                            # Create new names
-                            
-                            two1 <- paste0(x3[1], ":", x3[2]) 
-                            two2 <- paste0(x3[2], ":", x3[3]) 
-                            two3 <- paste0(x3[1], ":", x3[3])
-                            
-                            # Create a data frame with the three threats
-                            new1 <- pop_perd %>% 
-                              filter(grepl(x3[1],threats), 
-                                     grepl(x3[2],threats),
-                                     grepl(x3[3],threats), 
-                                     number==3) %>% 
-                              mutate(lambda=exp(Estimate-mus_mean$.value[mus_mean$.variable==i])) 
-                            
-                            # Subset the mus with two threats
-                            two_threat1 <- mus_mean %>%  filter(grepl(x3[1], .variable),
-                                                                grepl(x3[2], .variable),
-                                                                number==2)
-                            two_threat2 <- mus_mean %>%  filter(grepl(x3[2], .variable),
-                                                                grepl(x3[3], .variable),
-                                                                number==2)
-                            two_threat3 <- mus_mean %>%  filter(grepl(x3[1], .variable),
-                                                                grepl(x3[3], .variable),
-                                                                number==2)
-                            
-                            # subset two threats and substract
-                            if(dim(two_threat1)[1]==0){
-                              lam <- mus_mean$.value[mus_mean$.variable==x3[1]]+mus_mean$.value[mus_mean$.variable==x3[2]]
-                              new2 <- tryCatch({pop_perd %>% 
+                              
+                              # If the number of threats is equal to 3
+                              
+                              }else if(number_threats==3){
+                                # Separate the threats
+                                x3 <- unlist(strsplit(i, 
+                                                      ":", 
+                                                      fixed=T))
+                                # Create new names for the two interactive threats
+                                two1 <- paste0(x3[1], ":", x3[2]) 
+                                two2 <- paste0(x3[2], ":", x3[3]) 
+                                two3 <- paste0(x3[1], ":", x3[3])
+                                # Create a data frame where we subtract the 
+                                # effect of three threats
+                                new1 <- pop_trend %>% 
+                                  filter(grepl(x3[1],threats), 
+                                         grepl(x3[2],threats),
+                                         grepl(x3[3],threats), 
+                                         number==3) %>% 
+                                  mutate(new_trend=mean_trend-mean_trends$.value[mean_trends$.variable==paste0("time:",i)]) 
+                                # Subset the population trends with two threats
+                                # First and second threat
+                                two_threat1 <- mean_trends %>%  
+                                  filter(grepl(x3[1], .variable),
+                                         grepl(x3[2], .variable),
+                                         grepl("time", .variable),
+                                         number==2)
+                                # Second and third threat
+                                two_threat2 <- mean_trends %>%  
+                                  filter(grepl(x3[2], .variable),
+                                         grepl(x3[3], .variable),
+                                         grepl("time", .variable),
+                                         number==2)
+                                # First and third threat
+                                two_threat3 <- mean_trends %>%  
+                                  filter(grepl(x3[1], .variable),
+                                         grepl(x3[3], .variable),
+                                         grepl("time", .variable),
+                                         number==2)
+                                # If the two threats do not exist 
+                                if(dim(two_threat1)[1]==0){
+                                  # When there is no value we create a fake one
+                                  # with new_trend == NA
+                                  new2 <- tryCatch({pop_trend %>% 
+                                      filter(grepl(x3[1], threats),
+                                             grepl(x3[2], threats),
+                                             !ID%in%new1$ID) %>% 
+                                      mutate(new_trend=NA)},
+                                      error=function(e){e <- new1$lambda=NA})
+                                  # When there are some we do the usual procedure
+                                  }else{new2 <- tryCatch({pop_trend %>% 
+                                      filter(grepl(x3[1], threats),
+                                             grepl(x3[2], threats),
+                                             !series%in%new1$series) %>% 
+                                      mutate(new_trend=mean_trend-two_threat1$.value)},
+                                      error=function(e){e <- new1$new_trend=NA})}
+                                # Same here with other two threats
+                                if(dim(two_threat2)[1]==0){
+                                  new3 <- tryCatch({pop_trend %>% 
+                                      filter(grepl(x3[2], threats),
+                                             grepl(x3[3], threats),
+                                             !series%in%new1$series) %>% 
+                                      mutate(new_trend=NA)},
+                                      error=function(e){e <- new1$lambda=NA})
+                                  }else{new3 <- tryCatch({pop_trend %>% 
+                                      filter(grepl(x3[2], threats),
+                                             grepl(x3[3], threats),
+                                             !series%in%new1$series) %>% 
+                                      mutate(new_trend=mean_trend-two_threat2$.value)},
+                                      error=function(e){e <- new1$lambda=NA})}
+                                # Same here with other two threats
+                                if(dim(two_threat3)[1]==0){ 
+                                  new4 <- tryCatch({pop_trend %>% 
+                                      filter(grepl(x3[1], threats),
+                                             grepl(x3[3], threats),
+                                             !series%in%new1$series) %>% 
+                                      mutate(new_trend=NA)},
+                                      error=function(e){e <- new1$lambda=NA})
+                                }else{
+                                  new4 <- tryCatch({pop_trend %>% 
+                                      filter(grepl(x3[1], threats),
+                                             grepl(x3[3], threats),
+                                             !series%in%new1$series) %>% 
+                                      mutate(new_trend=mean_trend-two_threat3$.value)},
+                                      error=function(e){e <- new1$lambda=NA})  
+                                }
+                                
+                                # Now we remove the single effects
+                                # For first threat
+                                new5 <- pop_trend %>% 
                                   filter(grepl(x3[1], threats),
-                                         grepl(x3[2], threats),
-                                         !ID%in%new1$ID) %>% 
-                                  mutate(lambda=exp(Estimate-lam))},
-                                  error=function(e){e <- new1$lambda=NA})
-                            }else{new2 <- tryCatch({pop_perd %>% 
-                                filter(grepl(x3[1], threats),
-                                       grepl(x3[2], threats),
-                                       !ID%in%new1$ID) %>% 
-                                mutate(lambda=exp(Estimate-two_threat1$.value))},
-                                error=function(e){e <- new1$lambda=NA})}
-                            if(dim(two_threat2)[1]==0){
-                              lam <- mus_mean$.value[mus_mean$.variable==x3[2]]+mus_mean$.value[mus_mean$.variable==x3[3]]
-                              new3 <- tryCatch({pop_perd %>% 
+                                         !series%in%new1$series, 
+                                         !series%in%new2$series,
+                                         !series%in%new4$series) %>% 
+                                  mutate(new_trend=mean_trend-mean_trends$.value[mean_trends$.variable==paste0("time:",x3[1])])
+                                # For second threat
+                                new6 <- pop_trend %>% 
                                   filter(grepl(x3[2], threats),
-                                         grepl(x3[3], threats),
-                                         !ID%in%new1$ID) %>% 
-                                  mutate(lambda=exp(Estimate-lam))},
-                                  error=function(e){e <- new1$lambda=NA})
-                            }else{
-                              new3 <- tryCatch({pop_perd %>% 
-                                  filter(grepl(x3[2], threats),
-                                         grepl(x3[3], threats),
-                                         !ID%in%new1$ID) %>% 
-                                  mutate(lambda=exp(Estimate-two_threat2$.value))},
-                                  error=function(e){e <- new1$lambda=NA})  
-                            }
-                            if(dim(two_threat3)[1]==0){ 
-                              lam <- mus_mean$.value[mus_mean$.variable==x3[1]]+mus_mean$.value[mus_mean$.variable==x3[3]]
-                              new4 <- tryCatch({pop_perd %>% 
-                                  filter(grepl(x3[1], threats),
-                                         grepl(x3[3], threats),
-                                         !ID%in%new1$ID) %>% 
-                                  mutate(lambda=exp(Estimate-lam))},
-                                  error=function(e){e <- new1$lambda=NA})
-                            }else{
-                              new4 <- tryCatch({pop_perd %>% 
-                                  filter(grepl(x3[1], threats),
-                                         grepl(x3[3], threats),
-                                         !ID%in%new1$ID) %>% 
-                                  mutate(lambda=exp(Estimate-two_threat3$.value))},
-                                  error=function(e){e <- new1$lambda=NA})
-                            }
-                            new1 %>% replace_with_na()
-                            # Remove single effects
-                            
-                            new5 <- pop_perd %>% 
-                              filter(grepl(x3[1], threats), 
-                                     !ID%in%new1$ID, 
-                                     !ID%in%new2$ID,
-                                     !ID%in%new4$ID) %>% 
-                              mutate(lambda=exp(Estimate-mus_mean$.value[mus_mean$.variable==x3[1]]))
-                            
-                            
-                            new6 <- pop_perd %>% 
-                              filter(grepl(x3[2], threats),
-                                     !ID%in%new1$ID, 
-                                     !ID%in%new2$ID,
-                                     !ID%in%new3$ID) %>% 
-                              mutate(lambda=exp(Estimate-mus_mean$.value[mus_mean$.variable==x3[2]]))
-                            
-                            # Final subset
-                            
-                            new <- pop_perd %>% 
-                              filter(grepl(x3[3], threats),
-                                     !ID%in%new1$ID, 
-                                     !ID%in%new3$ID,
-                                     !ID%in%new4$ID) %>% 
-                              mutate(lambda=exp(Estimate-mus_mean$.value[mus_mean$.variable==x3[3]])) %>% 
-                              rbind(new1) %>% 
-                              rbind(new2) %>% 
-                              rbind(new3) %>% 
-                              rbind(new4) %>% 
-                              rbind(new5) %>% 
-                              rbind(new6)
-                            
-                            
-                            
-                            new <- new %>% 
-                              rbind(pop_perd %>% 
-                                      filter(!ID%in%new$ID)) %>% 
-                              mutate(scenario=paste("No", i)) %>% 
-                              drop_na(lambda)
-                          }
-                          
+                                         grepl("time", threats),
+                                         !series%in%new1$series, 
+                                         !series%in%new2$series,
+                                         !series%in%new3$series) %>% 
+                                  mutate(new_trend=mean_trend-mean_trends$.value[mean_trends$.variable==paste0("time:",x3[2])])
+                                # Final subset
+                                new <- pop_trend %>% 
+                                  filter(grepl(x3[3], threats),
+                                         grepl("time", threats),
+                                         !series%in%new1$series, 
+                                         !series%in%new3$series,
+                                         !series%in%new4$series) %>% 
+                                  mutate(new_trend=mean_trend-mean_trends$.value[mean_trends$.variable==paste0("time:",x3[3])]) %>% 
+                                  # Bind to the previous datasets
+                                  rbind(new1) %>% 
+                                  rbind(new2) %>% 
+                                  rbind(new3) %>% 
+                                  rbind(new4) %>% 
+                                  rbind(new5) %>% 
+                                  rbind(new6) %>% 
+                                  rbind(pop_trend %>% 
+                                          filter(!series%in%new$series)) %>% 
+                                  # Add the scenario name
+                                  mutate(scenario=paste("No", i)) 
+                                }
                         }
 
 # Stop the parallelisation
