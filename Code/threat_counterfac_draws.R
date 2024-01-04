@@ -62,13 +62,13 @@ threat_counterfac_draws <- function(model, threat_comns, ndraws = 1000, n.cores 
     counterfac_cols <- threatcols[grepl(y,threatcols)]
     
     nw_data <- model$data %>%
-      mutate(across(counterfac_cols,~factor(.x,levels = c("0","1")))) %>% #generate the data grid
+      mutate(across(all_of(counterfac_cols),~factor(.x,levels = c("0","1")))) %>% #generate the data grid
       dplyr::mutate(counterfac = y) #name the data grid
     
     return(brms::posterior_epred(model,
                                  newdata = nw_data,
                                  re.form = NULL,
-                                 ndraws = 1000) %>% #extract posterior draws for the above data grid
+                                 ndraws = ndraws) %>% #extract posterior draws for the above data grid
              t() %>%
              as.data.frame() %>%
              split(nw_data$series) %>%
