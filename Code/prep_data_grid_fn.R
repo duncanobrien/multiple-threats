@@ -27,7 +27,7 @@ prep_data_grid <- function(data,
     selcols <- ""
     nullcols <- threatcols
   }else{
-    if(grepl("+",threat)){ #if additive threats are desired
+    if(grepl("\\+",threat)){ #if additive threats are desired
       thrts <- trimws(unlist(strsplit(threat,"\\+"))) #split the `threat` string in to its separate threats and remove whitespace
     }else{ #else if threat is singular or synergistic
       if(!threat %in% threatcols){ #error handling when threat not found
