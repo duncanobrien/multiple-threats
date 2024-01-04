@@ -285,3 +285,42 @@ scenarios_median <- scenarios_data %>%
             mcounter=median(log(lambda))) %>% 
   mutate(prop=((mcounter-(mcontrol))/abs(mcontrol))*100,
          prop=round(prop,2))
+
+
+
+########################
+# Duncan counterfactual dydx
+########################
+
+source("Code/threat_counterfac_draws.R")
+pop_perd <- brms::posterior_epred(mod_intvadd2,
+                                  newdata = mod_intvadd2$data,
+                                  re.form = NULL,
+                                  ndraws = 1000) %>% #extract posterior draws for the above data grid
+  t() %>%
+  as.data.frame() %>%
+  split(mod_intvadd2$data$series) %>%
+  sapply(FUN = function(y){ 
+    apply(y,MARGIN = 2, FUN = function(x){mean(diff(x)/diff(seq_along(x)))})}) %>%
+  as.data.frame() %>%
+  mutate(.draw = 1:n()) %>%
+  pivot_longer(-.draw,names_to = "series",values_to = ".value") %>%
+  merge(y = dplyr::distinct(dplyr::select(mod_intvadd2$data,-c(y_centered,scaled_year,time))),
+        by = "series") %>%
+  mutate(counterfac = "none")
+
+counter_fac_data <- threat_counterfac_draws(mod_intvadd2,
+                                            threat_comns = c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),
+                                            ndraws = 1000) %>%
+  rbind(pop_perd) %>%
+  mutate(counterfac = fct_relevel(after = "none"))
+
+counterfac_diff <- do.call("rbind",lapply(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),function(x){
+  
+  counter_fac_data %>%
+    subset(counterfac %in% c(x,"none")) %>% #subset to shared additive and interactive threats (e.g. "threat1.threat2" and "threat1 + threat2")
+    arrange(series,.draw,counterfac) %>% #as "none" is reference level, sets none first value of group
+    reframe(.value = .value[1]-.value[2], .by = c(series,.draw)) %>% #find difference in derivatives between additive and interactive threats
+    mutate(counterfac = x) #name threat combination
+  
+}))
