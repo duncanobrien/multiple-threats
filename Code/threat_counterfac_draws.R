@@ -75,7 +75,8 @@ threat_counterfac_draws <- function(model, threat_comns, ndraws = 1000, n.cores 
              sapply(FUN = function(y){ 
                apply(y,MARGIN = 2, FUN = function(x){mean(diff(x)/diff(seq_along(x)))})}) %>%
              as.data.frame() %>%
-             pivot_longer(everything(),names_to = "series",values_to = ".draw") %>%
+             mutate(.draw = 1:n()) %>%
+             pivot_longer(-.draw,names_to = "series",values_to = ".value") %>%
              merge(y = dplyr::distinct(dplyr::select(nw_data,-c(y_centered,scaled_year,time))),
                    by = "series"))
   }))
