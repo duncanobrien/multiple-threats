@@ -246,7 +246,7 @@ post_dydx_intvadd <- do.call("rbind",lapply(all_threats,function(x){
     mutate(threat_group = x) 
   
   return(out)
-}))
+})) 
 
 dydx_interval_intvadd <- post_dydx_intvadd  %>%
   #mutate(.chain = 1, .iteration = .draw) %>% #add additional columns required by ggdist
@@ -261,7 +261,7 @@ ggplot(data = post_dydx_intvadd ,
   geom_vline(xintercept = 0, linetype = "dashed", colour="grey50") +
   scale_colour_manual(values = c("#F5A433","#8B33F5","#57A06B"), guide = "none") + 
   scale_fill_manual(values = c("#F5A433","#8B33F5","#57A06B"), guide = "none") + 
-  facet_wrap(~threat_group) + 
+  #facet_wrap(~threat_group) + 
   coord_cartesian(xlim = c(-0.5,0.5))+
   xlab("Population trend") + 
   ylab("Threat") + 
@@ -308,8 +308,8 @@ ggplot(data = na.omit(post_intvadd_diff),
   geom_vline(xintercept = 0, linetype = "dashed", colour="grey50") +
   coord_cartesian(xlim = c(-0.25,0.25)) + 
   scale_fill_manual(values = c("#694364",
-                               "#B32315",
-                               "#1E63B3"), name = "") + 
+                               "#1E63B3",
+                               "#B32315"), name = "") + 
   #facet_wrap(~threat_group) + 
   xlab( expression(paste("Additive ",partialdiff,"y","/",partialdiff,"x"," - interactive ",partialdiff,"y","/",partialdiff,"x"))) + 
   ylab("Threat combination") + 
