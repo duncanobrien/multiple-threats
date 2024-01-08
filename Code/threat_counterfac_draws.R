@@ -11,7 +11,8 @@
 #' post_draws <- threat_post_draws(model = brms_mod1, threat_comns = c("climatechange","pollution","invasive"))
 require(foreach)
 
-threat_counterfac_draws <- function(model, threat_comns, ndraws = 1000, n.cores = 4, ...){
+threat_counterfac_draws <- function(model, threat_comns, 
+                                    ndraws = 1000, n.cores = 4, ...){
   
    cl <- parallel::makeCluster(n.cores)
    doParallel::registerDoParallel(cl)
@@ -56,25 +57,29 @@ threat_counterfac_draws <- function(model, threat_comns, ndraws = 1000, n.cores 
     
     
   # }
-  out <- foreach::foreach(y = threat_comns, .combine = "rbind",.packages=c("brms","dplyr","tidyr"), .export = "threatcols") %dopar% {
+  out <- foreach::foreach(y = threat_comns, .combine = "rbind",
+                          .packages=c("brms","dplyr","tidyr"), 
+                          .export = "threatcols") %dopar% {
   
   #out <- do.call("rbind",lapply(threat_comns,function(y){
     
-    counterfac_cols <- threatcols[grepl(y,threatcols)]
-    thrts <-unlist(strsplit(y,"[.]"))
-    if(length(thrts) > 1){
-      selcols <- unique(c(thrts,combn(thrts,2,FUN = function(x){paste(x,collapse = ".")}),y)) #find all combinations of those threats
-    }else{
-      selcols <- thrts
-    }
-    counterfac_cols <- threatcols[grepl(paste(paste0("^",selcols,"$"),collapse = "|"),threatcols)]
+    # counterfac_cols <- threatcols[grepl(y,threatcols)]
+    
+    # thrts <-unlist(strsplit(y,"[.]"))
+    # if(length(thrts) > 1){
+    #   selcols <- unique(c(thrts,combn(thrts,2,FUN = function(x){paste(x,collapse = ".")}),y)) #find all combinations of those threats
+    # }else{
+    #   selcols <- thrts
+    # }
+    # counterfac_cols <- threatcols[grepl(paste(paste0("^",selcols,"$"),collapse = "|"),threatcols)]
 
     #counterfac_cols <- threatcols[grepl(y,threatcols)]
     
     nw_data <- model$data %>%
-      mutate(across(all_of(counterfac_cols),~factor("0",levels = c("0","1")))) %>% #generate the data grid
-      dplyr::mutate(counterfac = y) #name the data grid
-    
+      mutate(across(all_of(y),
+                    ~factor("0",levels = c("0","1")))) %>% #generate the data grid
+      dplyr::mutate(counterfac = paste("No", y))  #name the data grid
+
     tmp <- brms::posterior_epred(model,
                                  newdata = nw_data,
                                  re.form = NA,
