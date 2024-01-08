@@ -17,7 +17,7 @@ library(doSNOW)
 
 # Load the model 
 
-m1 <- read_rds("Results/models/simple-slopes-intvadd2.RDS")
+m1 <- read_rds("Results/simple-slopes-intvadd2.RDS")
 
 # Load the functions
 
@@ -57,8 +57,11 @@ threat_cols <- c("pollution","habitatl",
                     "climatechange","invasive", 
                     "exploitation","disease")
 
-threat_cols <-  colnames(m1$data)[grepl(paste(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),collapse = "|"),
-                                              colnames(m1$data))][22:37]
+threat_cols <-  colnames(m1$data)[grepl(paste(c("pollution","habitatl",
+                                                "climatechange","invasive", 
+                                                "exploitation","disease"),
+                                              collapse = "|"),
+                                              colnames(m1$data))]
 
 counter_fac_data <- threat_counterfac_draws(m1,
                                             threat_comns = threat_cols,
