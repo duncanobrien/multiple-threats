@@ -17,7 +17,7 @@ library(doSNOW)
 
 # Load the model 
 
-m1 <- read_rds("Results/simple-slopes-intvadd2.RDS")
+m1 <- read_rds("Results/models/simple-slopes-intvadd2.RDS")
 
 # Load the functions
 
@@ -29,15 +29,13 @@ source("Code/threat_counterfac_draws.R")
 
 pop_perd <- brms::posterior_epred(m1,
                                   newdata = m1$data,
-                                  re.form = NULL, # Remove the random effects
+                                  re.form = NA, # Remove the random effects
                                   ndraws = 1000) %>% 
   #extract posterior draws for the data used to create the model
-  t() %>% # Transpose 
-  as.data.frame() %>% # Change to data frame
-  split(m1$data$series) %>% # Split into different time series
-  # Calculate the derivatives, population trends, for each time series
-  sapply(FUN = function(y){ 
-    apply(y,MARGIN = 2, FUN = function(x){mean(diff(x)/diff(seq_along(x)))})}) %>%
+  t()  # Transpose 
+pop_perd <- lapply(split(pop_perd,m1$data$series), matrix, ncol=NCOL(pop_perd))  #Split into different time series
+pop_perd <- sapply(pop_perd, FUN = function(y){ 
+  apply(y,MARGIN = 2, FUN = function(x){mean(diff(x)/diff(seq_along(x)))})}) %>%
   as.data.frame() %>% # Change to data frame again
   mutate(.draw = 1:n()) %>% # Create a column identifying each draw
   # Pivot longer so we have a value per time series
@@ -50,16 +48,20 @@ pop_perd <- brms::posterior_epred(m1,
         by = "series") %>%
   # Create a column where we specify the counterfactual as "none" 
   mutate(counterfac = "none")
-
 # Create the different counterfactual scenarios
 
 # We use the function counterfactual draws to estimate the different population 
 # trends for each of the counterfactual scenarios 
 
+threat_cols <- c("pollution","habitatl",
+                    "climatechange","invasive", 
+                    "exploitation","disease")
+
+threat_cols <-  colnames(m1$data)[grepl(paste(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),collapse = "|"),
+                                              colnames(m1$data))][22:37]
+
 counter_fac_data <- threat_counterfac_draws(m1,
-                                            threat_comns = c("pollution","habitatl",
-                                                             "climatechange","invasive", 
-                                                             "exploitation","disease"),
+                                            threat_comns = threat_cols,
                                             ndraws = 1000,
                                             n.cores = 6) %>%
   # Join with the none counterfactual scenario that we just created
@@ -81,9 +83,7 @@ counter_fac_data %>%
 # Estimate the difference in population trend
 
 counterfac_diff <- do.call("rbind",
-                           lapply(c("pollution","habitatl",
-                                    "climatechange","invasive", 
-                                    "exploitation","disease"),
+                           lapply(threat_cols,
                                   function(x){
                                     counter_fac_data %>%
                                       # Filter

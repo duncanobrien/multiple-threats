@@ -249,9 +249,9 @@ post_dydx_intvadd <- do.call("rbind",lapply(all_threats,function(x){
 }))
 
 dydx_interval_intvadd <- post_dydx_intvadd  %>%
-  mutate(.chain = 1, .iteration = .draw) %>% #add additional columns required by ggdist
+  #mutate(.chain = 1, .iteration = .draw) %>% #add additional columns required by ggdist
   group_by(threat_group,combo_group,threat) %>%
-  ggdist::median_qi(.width = c(.95, .8, .5),.exclude = c(".chain", ".iteration", ".draw"))  #extract distribution information
+  ggdist::median_qi(.width = c(.95, .8, .5),.exclude = c(".draw"))  #extract distribution information
 
 ggplot(data = post_dydx_intvadd , 
        aes(x = .value,y=threat,fill = combo_group)) +
@@ -271,7 +271,8 @@ post_intvadd_diff <- do.call("rbind",lapply(additive_cols[grepl("\\+",additive_c
   
   post_dydx_intvadd %>%
     subset(threat %in% c(x,gsub(" \\+ ",".",x))) %>% #subset to shared additive and interactive threats (e.g. "threat1.threat2" and "threat1 + threat2")
-    reframe(.value = .value[2]-.value[1], .by = c(threat_group,.draw)) %>% #find difference in derivatives between additive and interactive threats
+    #reframe(.value = .value[2]-.value[1], .by = c(threat_group,.draw)) %>% #find difference in derivatives between additive and interactive threats
+    reframe(.value = diff(c(.value[2],.value[1])), .by = c(threat_group,.draw)) %>% #find difference in derivatives between additive and interactive threats
     mutate(threats = gsub(" \\+ ",".",x) ) #name threat combination
   
   # post_dydx_intvadd %>%
@@ -287,9 +288,8 @@ post_intvadd_diff <- do.call("rbind",lapply(additive_cols[grepl("\\+",additive_c
 
 post_interval_intvadd_diff <- post_intvadd_diff %>%
   na.omit() %>% #drop missing threats 
-  mutate(.chain = 1, .iteration = .draw) %>%
   group_by(threat_group,threats) %>%
-  ggdist::median_qi(.width = c(.95, .8, .5),.exclude = c(".chain", ".iteration", ".draw")) %>%  #extract distribution information
+  ggdist::median_qi(.width = c(.95, .8, .5),.exclude = c(".draw")) %>%  #extract distribution information
   mutate(interaction.type = case_when(
     .upper < 0 ~ "synergistic",
     .lower > 0 ~ "antagonistic",
@@ -310,7 +310,7 @@ ggplot(data = na.omit(post_intvadd_diff),
   scale_fill_manual(values = c("#694364",
                                "#B32315",
                                "#1E63B3"), name = "") + 
-  facet_wrap(~threat_group) + 
+  #facet_wrap(~threat_group) + 
   xlab( expression(paste("Additive ",partialdiff,"y","/",partialdiff,"x"," - interactive ",partialdiff,"y","/",partialdiff,"x"))) + 
   ylab("Threat combination") + 
   theme_minimal()
@@ -334,12 +334,6 @@ post_intvadd_diff_syns <- post_intvadd_diff  %>%
          freq = (n / sum(n))*100) %>%
   ungroup()
 
-base_data <- data %>% 
-  group_by(Taxon) %>% 
-  summarize(start=min(id), end=max(id) - empty_bar) %>% 
-  rowwise() %>% 
-  mutate(title=mean(c(start, end)))
-
 ggplot(post_intvadd_diff_syns) +
   # Add the stacked bar
   geom_bar(aes(x=as.factor(threat_group), y=freq, fill=interaction.type), 
@@ -361,8 +355,4 @@ ggplot(post_intvadd_diff_syns) +
     panel.grid = element_blank(),
     plot.margin = unit(rep(-1,4), "cm") 
   ) +
-  coord_polar() +
-  geom_text(data=base_data, aes(x = title, y = -22, label=Taxon), 
-            hjust=c(0.9,0.8,0.5,0,0), 
-            colour = taxon_pal, alpha=0.8, size=4, 
-            fontface="bold",inherit.aes = FALSE)
+  coord_polar() 
