@@ -28,7 +28,8 @@ threat_post_draws <- function(model, threat_comns, ndraws = NULL, n.cores = 4, .
       brms::posterior_epred(model,
                           newdata = nw_data,
                           re.form = NA,
-                          ndraws = ndraws) %>% #extract posterior draws for the above data grid
+                          ndraws = ndraws,
+                          incl_autocor = FALSE) %>% #extract posterior draws for the above data grid
       as.data.frame() %>%
       dplyr::mutate(.draw = 1:NROW(.)) %>% #label the draw
       tidyr::pivot_longer(-".draw",names_to = ".timepoint",values_to = ".value",

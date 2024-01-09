@@ -5,7 +5,6 @@ threatcols <- colnames(mod_intvadd3$data)[grepl(paste(all_threats,collapse = "|"
 
 postdraws <- threat_post_draws(model = mod_intvadd3,
                                       threat_comns = c("none",threatcols)) #estimate posterior draws for all threat singles and combinations
-
 post_dydx <- do.call("rbind",lapply(all_threats,function(x){
 
   # out <- postdraws %>%
@@ -17,6 +16,7 @@ post_dydx <- do.call("rbind",lapply(all_threats,function(x){
   out <- postdraws %>%
     subset(grepl(x,threat)) %>% #subset to focal threat
     reframe(.value = mean(diff(.value)/diff(time)),.by = c(threat,.draw)) %>% #for each posterior timeseries, estimate the first derivative 
+    ungroup() %>%
     mutate(int_group = ifelse(grepl("\\.",threat),"combined","single"))%>% #create grouping column for whether the threat is singular or a combination
     mutate(threat_group = x) %>% #overall threat grouping
     group_by(threat) %>%
@@ -46,19 +46,19 @@ plot_dydx_threats <- post_dydx %>%
 
 p1 <- ggplot(data = plot_dydx_threats, 
        aes(x = .value,y=int_group)) +
-  tidybayes::stat_slab(data = subset(tt,int_group == "single"),
+  tidybayes::stat_slab(data = subset(plot_dydx_threats,int_group == "single"),
                        aes(fill = fill_col,group = threat), alpha=0.3) +
-  tidybayes::stat_slab(data = subset(tt,int_group == "combined"),
+  tidybayes::stat_slab(data = subset(plot_dydx_threats,int_group == "combined"),
                        aes(fill = fill_col,group = threat,col = fill_col), alpha=0.2) +
-  ggdist::geom_pointinterval(data = dydx_interval,
+  ggdist::geom_pointinterval(data = subset(dydx_interval,threat_group != "none"),
                              aes(xmin = .lower, xmax = .upper),position = position_dodge()) +
   geom_vline(xintercept = 0, linetype = "dashed", colour="grey50") +
   xlab("Population trend") + 
   ylab("Threat") + 
   coord_cartesian(xlim = c(-0.2,0.2)) +
   facet_wrap(~threat_group) +
-  scale_fill_manual(values = levels(tt$fill_col),guide = "none") + 
-  scale_color_manual(values = levels(tt$fill_col),guide = "none") + 
+  scale_fill_manual(values = levels(plot_dydx_threats$fill_col),guide = "none") + 
+  scale_color_manual(values = levels(plot_dydx_threats$fill_col),guide = "none") + 
   theme_minimal()+
   theme(axis.title.x = element_text(size=12,
                                     margin = margin(t = 10, r = 0, b = 0, l = 0)), 

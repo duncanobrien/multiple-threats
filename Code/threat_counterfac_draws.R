@@ -75,21 +75,40 @@ threat_counterfac_draws <- function(model, threat_comns,
 
     #counterfac_cols <- threatcols[grepl(y,threatcols)]
     
+   # mod_data <- model$data %>%
+   #   group_by(series) %>%
+   #   filter(pollution == "1" |
+   #            habitatl == "1" |
+   #            climatechange  == "1" |
+   #            invasive  == "1" |
+   #            exploitation  == "1" |
+   #            disease  == "1")
+   
     nw_data <- model$data %>%
       mutate(across(all_of(y),
                     ~factor("0",levels = c("0","1")))) %>% #generate the data grid
-      dplyr::mutate(counterfac = paste("No", y))  #name the data grid
+      dplyr::mutate(counterfac = y)  #name the data grid
 
     tmp <- brms::posterior_epred(model,
                                  newdata = nw_data,
-                                 re.form = NA,
-                                 ndraws = ndraws) %>% #extract posterior draws for the above data grid
+                                 re.form = NULL,
+                                 ndraws = ndraws,
+                                 sort = TRUE,
+                                 incl_autocor = FALSE) %>% #extract posterior draws for the above data grid
       t()
     tmp <- lapply(split(tmp,nw_data$series), matrix, ncol=NCOL(tmp))  #Split into different time series
+    
     tmp <- sapply(tmp, FUN = function(y){ 
-      apply(y,MARGIN = 2, FUN = function(x){mean(diff(x)/diff(seq_along(x)))})}) %>%
+      apply(y,MARGIN = 2, FUN = function(x){
+        #mean(diff(x)/diff(seq_along(x)))
+        
+        lx <- length(x)
+        diff(c(x[1],x[lx]))/lx
+        
+        #lm(x~seq_along(x))$coefficients[2]
+        })}) %>%
       as.data.frame() %>% 
-      mutate(.draw = 1:n()) %>% 
+      mutate(.draw = 1:NROW(.)) %>% 
       pivot_longer(-.draw,
                    names_to = "series",
                    values_to = ".value") %>% 

@@ -229,6 +229,7 @@ target_cols <- unique(c(threatcols,additive_cols))
 
 postdraws_intvadd <- threat_post_draws(model = mod_intvadd3,
                                        threat_comns = target_cols,
+                                       nuisance = c("series","SpeciesName"),
                                        n.cores = 4) %>%
   mutate(combo_group = case_when(
     grepl("[.]",threat) ~ "interactive",
