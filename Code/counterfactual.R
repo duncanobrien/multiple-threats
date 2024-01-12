@@ -25,10 +25,23 @@ source("Code/threat_counterfac_draws.R")
 
 # Conterfactual tests ----------------------------------------------------------
 
+# trends for each of the counterfactual scenarios 
+
+threat_cols <- c("pollution","habitatl",
+                 "climatechange","invasive", 
+                 "exploitation","disease")
+
+threat_cols <-  colnames(m1$data)[grepl(paste(c("pollution","habitatl",
+                                                "climatechange","invasive", 
+                                                "exploitation","disease"),
+                                              collapse = "|"),
+                                        colnames(m1$data))]
+
+
 # Predict the population trends in the "no intervention" scenario
 
 pop_perd <- brms::posterior_epred(m1,
-                                  newdata = m1$data,
+                                  newdata = m1$data %>% filter_at(threat_cols, any_vars(. != "0")),
                                   re.form = NA,
                                   incl_autocor = FALSE,
                                   sort = TRUE, 
@@ -37,24 +50,15 @@ pop_perd <- brms::posterior_epred(m1,
   mutate(.draw = 1:NROW(.)) %>%
   #extract posterior draws for the data used to create the model
   pivot_longer(-.draw,names_to = "index",values_to = ".value") %>%
-  cbind(m1$data %>% dplyr::select(series, time), row.names = NULL) %>% 
+  cbind(m1$data %>%
+          filter_at(threat_cols, any_vars(. != "0")) %>% 
+          dplyr::select(series, time), row.names = NULL) %>% 
   reframe(.value = mean(diff(.value)/diff(time)),.by = c(series,.draw)) %>% 
   mutate(counterfac="none")
 
 # Create the different counterfactual scenarios
 
 # We use the function counterfactual draws to estimate the different population 
-# trends for each of the counterfactual scenarios 
-
-threat_cols <- c("pollution","habitatl",
-                    "climatechange","invasive", 
-                    "exploitation","disease")
-
-threat_cols <-  colnames(m1$data)[grepl(paste(c("pollution","habitatl",
-                                                "climatechange","invasive", 
-                                                "exploitation","disease"),
-                                              collapse = "|"),
-                                              colnames(m1$data))]
 
 counter_fac_data <- threat_counterfac_draws(m1,
                                             threat_comns = threat_cols,
