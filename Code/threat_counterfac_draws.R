@@ -60,62 +60,47 @@ threat_counterfac_draws <- function(model, threat_comns,
   out <- foreach::foreach(y = threat_comns, .combine = "rbind",
                           .packages=c("brms","dplyr","tidyr"), 
                           .export = "threatcols") %dopar% {
-  
-  #out <- do.call("rbind",lapply(threat_comns,function(y){
+                            
+                            # Split the threats
+                            thrts <-unlist(strsplit(y,"[.]"))
+                            # Find the threats combinations
+                            counterfac_cols <- threatcols[grepl(paste(thrts, collapse = "|"), threatcols)]
+                            
+                            nw_data <- model$data %>%
+                              # Filter out the populations not exposed to threat
+                              filter_at(threat_cols, any_vars(. != "0")) %>% 
+                              # Set the
+                              mutate(across(all_of(counterfac_cols),
+                                            ~factor("0",levels = c("0","1")))) %>% #generate the data grid
+                              dplyr::mutate(counterfac = paste("No", y))  #name the data grid
+                            # Make the predictons 
+                            tmp <- brms::posterior_epred(model,
+                                                         newdata = nw_data,
+                                                         re.form = NA,
+                                                         incl_autocor = FALSE,
+                                                         sort = TRUE,
+                                                         ndraws = ndraws) %>% #extract posterior draws for the above data grid
+                              as.data.frame() %>%
+                              mutate(.draw = 1:NROW(.)) %>%
+                              #extract posterior draws for the data used to create the model
+                              pivot_longer(-.draw,names_to = "index",values_to = ".value") %>%
+                              cbind(nw_data %>% dplyr::select(series, time), row.names = NULL) %>% 
+                              reframe(.value = mean(diff(.value)/diff(time)),.by = c(series,.draw)) %>% 
+                              mutate(counterfac=paste("No", y))
     
-    # counterfac_cols <- threatcols[grepl(y,threatcols)]
-    
-    # thrts <-unlist(strsplit(y,"[.]"))
-    # if(length(thrts) > 1){
-    #   selcols <- unique(c(thrts,combn(thrts,2,FUN = function(x){paste(x,collapse = ".")}),y)) #find all combinations of those threats
-    # }else{
-    #   selcols <- thrts
-    # }
-    # counterfac_cols <- threatcols[grepl(paste(paste0("^",selcols,"$"),collapse = "|"),threatcols)]
-
-    #counterfac_cols <- threatcols[grepl(y,threatcols)]
-    
-   # mod_data <- model$data %>%
-   #   group_by(series) %>%
-   #   filter(pollution == "1" |
-   #            habitatl == "1" |
-   #            climatechange  == "1" |
-   #            invasive  == "1" |
-   #            exploitation  == "1" |
-   #            disease  == "1")
-   
-    nw_data <- model$data %>%
-      mutate(across(all_of(y),
-                    ~factor("0",levels = c("0","1")))) %>% #generate the data grid
-      dplyr::mutate(counterfac = y)  #name the data grid
-
-    tmp <- brms::posterior_epred(model,
-                                 newdata = nw_data,
-                                 re.form = NULL,
-                                 ndraws = ndraws,
-                                 sort = TRUE,
-                                 incl_autocor = FALSE) %>% #extract posterior draws for the above data grid
-      t()
-    tmp <- lapply(split(tmp,nw_data$series), matrix, ncol=NCOL(tmp))  #Split into different time series
-    
-    tmp <- sapply(tmp, FUN = function(y){ 
-      apply(y,MARGIN = 2, FUN = function(x){
-        #mean(diff(x)/diff(seq_along(x)))
-        
-        lx <- length(x)
-        diff(c(x[1],x[lx]))/lx
-        
-        #lm(x~seq_along(x))$coefficients[2]
-        })}) %>%
-      as.data.frame() %>% 
-      mutate(.draw = 1:NROW(.)) %>% 
-      pivot_longer(-.draw,
-                   names_to = "series",
-                   values_to = ".value") %>% 
-      merge(y = dplyr::distinct(dplyr::select(nw_data,
-                                              -c(y_centered,scaled_year,time))),
-            by = "series") 
-  
+    #   t()
+    # tmp <- lapply(split(tmp,nw_data$series), matrix, ncol=NCOL(tmp))  #Split into different time series
+    # tmp <- sapply(tmp, FUN = function(y){ 
+    #   apply(y,MARGIN = 2, FUN = function(x){mean(diff(x)/diff(seq_along(x)))})}) %>%
+    #   as.data.frame() %>% 
+    #   mutate(.draw = 1:n()) %>% 
+    #   pivot_longer(-.draw,
+    #                names_to = "series",
+    #                values_to = ".value") %>% 
+    #   merge(y = dplyr::distinct(dplyr::select(nw_data,
+    #                                           -c(y_centered,scaled_year,time))),
+    #         by = "series") 
+    # 
     return(tmp)
   }
   
