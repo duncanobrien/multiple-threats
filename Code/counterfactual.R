@@ -29,25 +29,18 @@ source("Code/threat_counterfac_draws.R")
 
 pop_perd <- brms::posterior_epred(m1,
                                   newdata = m1$data,
-                                  re.form = NA, # Remove the random effects
-                                  ndraws = 1000) %>% 
+                                  re.form = NA,
+                                  incl_autocor = FALSE,
+                                  sort = TRUE, 
+                                  ndraws = 100) %>% 
+  as.data.frame() %>%
+  mutate(.draw = 1:NROW(.)) %>%
   #extract posterior draws for the data used to create the model
-  t()  # Transpose 
-pop_perd <- lapply(split(pop_perd,m1$data$series), matrix, ncol=NCOL(pop_perd))  #Split into different time series
-pop_perd <- sapply(pop_perd, FUN = function(y){ 
-  apply(y,MARGIN = 2, FUN = function(x){mean(diff(x)/diff(seq_along(x)))})}) %>%
-  as.data.frame() %>% # Change to data frame again
-  mutate(.draw = 1:n()) %>% # Create a column identifying each draw
-  # Pivot longer so we have a value per time series
-  pivot_longer(-.draw,
-               names_to = "series",
-               values_to = ".value") %>% 
-  # Merge with the original data
-  merge(y = dplyr::distinct(dplyr::select(m1$data,
-                                          -c(y_centered,scaled_year,time))),
-        by = "series") %>%
-  # Create a column where we specify the counterfactual as "none" 
-  mutate(counterfac = "none")
+  pivot_longer(-.draw,names_to = "index",values_to = ".value") %>%
+  cbind(m1$data %>% dplyr::select(series, time), row.names = NULL) %>% 
+  reframe(.value = mean(diff(.value)/diff(time)),.by = c(series,.draw)) %>% 
+  mutate(counterfac="none")
+
 # Create the different counterfactual scenarios
 
 # We use the function counterfactual draws to estimate the different population 
@@ -65,23 +58,180 @@ threat_cols <-  colnames(m1$data)[grepl(paste(c("pollution","habitatl",
 
 counter_fac_data <- threat_counterfac_draws(m1,
                                             threat_comns = threat_cols,
-                                            ndraws = 1000,
+                                            ndraws = 100,
                                             n.cores = 6) %>%
   # Join with the none counterfactual scenario that we just created
   rbind(pop_perd) %>%
   # Made "none" as the first level of the counterfactual 
   mutate(counterfac = fct_relevel(counterfac, "none"))
 
+threat_palette<-c(MetBrewer::met.brewer(name="Hokusai1", n=6, type="continuous"), "grey60")
+
 # Lets have a look at it 
 
-counter_fac_data %>% 
+scenarios_mean <- counter_fac_data %>% 
   group_by(counterfac) %>% 
-  summarise(m=mean(.value))
-  
-counter_fac_data %>% 
-  ggplot(aes(x=counterfac, y=.value))+
-  geom_boxplot(outlier.shape = NA)+
-  scale_y_continuous(trans = "log")
+  summarise(m=median(.value)) %>% 
+  arrange(desc(m))
+
+# One threat
+
+(p1 <- counter_fac_data %>% 
+  # add a variable counting the number of threats
+  mutate(number=str_count(counterfac, '\\.')+1) %>%
+  group_by(counterfac) %>% 
+  mutate(pos=median(.value)) %>% 
+  ungroup() %>%   
+  filter(number==1) %>% 
+  # Start the plot
+  ggplot(aes(x = .value,
+             y=reorder(counterfac, pos),
+             fill=counterfac, 
+             colour=counterfac)) +
+  stat_halfeye(adjust = .5, 
+               width = .6, 
+               .width = 0,
+               alpha=.8,
+               justification = -.3, 
+               point_colour = NA) + 
+  geom_boxplot(width = .2, 
+               outlier.shape = NA, 
+               alpha=.8,
+               colour="black") +
+  scale_fill_manual(values=c(threat_palette))+
+  scale_colour_manual(values=threat_palette)+
+  # geom_boxplot(outlier.shape = NA)+
+  # tidybayes::stat_halfeye(aes(group = counterfac)) +
+  geom_vline(xintercept = 0,
+             linetype = "dashed", 
+             colour="grey50") +
+    xlab("Population trend") + 
+    ylab("Counterfactual") +
+    coord_flip(xlim = c(-0.05,0.05))+
+    theme_minimal()+
+    theme(axis.title.x = element_text(size=12,
+                                    margin = margin(t = 10, r = 0, b = 0, l = 0)), 
+        axis.title.y = element_text(size=12,
+                                    margin = margin(t = 0, r = 10, b = 0, l = 0)),
+        axis.line.x = element_line(color="black", linewidth = 0.5),
+        axis.line.y = element_line(color="black", linewidth = 0.5),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(color="black", size = 12),
+        axis.text.y = element_text(color="black", size = 12),
+        strip.text.x = element_text(size = 12),
+        axis.ticks = element_line(color="black"),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "none"))
+
+ggsave("Results/counterfactuals.pdf", p1, 
+       width = 8, height = 6)
+
+# Two threats
+
+(p2 <- counter_fac_data %>% 
+    # add a variable counting the number of threats
+    mutate(number=str_count(counterfac, '\\.')+1) %>%
+    group_by(counterfac) %>% 
+    mutate(pos=median(.value)) %>% 
+    ungroup() %>%   
+    filter(number==2) %>% 
+    # Start the plot
+    ggplot(aes(x = .value,
+               y=reorder(counterfac, pos),
+               fill=counterfac, 
+               colour=counterfac)) +
+    stat_halfeye(adjust = .5, 
+                 width = .6, 
+                 .width = 0,
+                 alpha=.8,
+                 justification = -.3, 
+                 point_colour = NA) + 
+    geom_boxplot(width = .2, 
+                 outlier.shape = NA, 
+                 alpha=.8,
+                 colour="black") +
+    scale_fill_manual(values=MetBrewer::met.brewer(name="Tiepolo", n=15, type="continuous"))+
+    scale_colour_manual(values=MetBrewer::met.brewer(name="Tiepolo", n=15, type="continuous"))+
+    # geom_boxplot(outlier.shape = NA)+
+    # tidybayes::stat_halfeye(aes(group = counterfac)) +
+    geom_vline(xintercept = 0,
+               linetype = "dashed", 
+               colour="grey50") +
+    xlab("Population trend") + 
+    ylab("Counterfactual") +
+    coord_cartesian(xlim = c(-0.05,0.05))+
+    theme_minimal()+
+    theme(axis.title.x = element_text(size=12,
+                                      margin = margin(t = 10, r = 0, b = 0, l = 0)), 
+          axis.title.y = element_text(size=12,
+                                      margin = margin(t = 0, r = 10, b = 0, l = 0)),
+          axis.line.x = element_line(color="black", linewidth = 0.5),
+          axis.line.y = element_line(color="black", linewidth = 0.5),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          axis.text.x = element_text(color="black", size = 12),
+          axis.text.y = element_text(color="black", size = 12),
+          strip.text.x = element_text(size = 12),
+          axis.ticks = element_line(color="black"),
+          plot.title = element_text(hjust = 0.5),
+          legend.position = "none"))
+
+ggsave("Results/counterfactualstwothreats.pdf", p2, 
+       width = 6, height = 12)
+
+# Three threats
+
+(p3 <- counter_fac_data %>% 
+    # add a variable counting the number of threats
+    mutate(number=str_count(counterfac, '\\.')+1) %>%
+    group_by(counterfac) %>% 
+    mutate(pos=median(.value)) %>% 
+    ungroup() %>%   
+    filter(number==3) %>% 
+    # Start the plot
+    ggplot(aes(x = .value,
+               y=reorder(counterfac, pos),
+               fill=counterfac, 
+               colour=counterfac)) +
+    stat_halfeye(adjust = .5, 
+                 width = .6, 
+                 .width = 0,
+                 alpha=.8,
+                 justification = -.3, 
+                 point_colour = NA) + 
+    geom_boxplot(width = .2, 
+                 outlier.shape = NA, 
+                 alpha=.8,
+                 colour="black") +
+    scale_fill_manual(values=MetBrewer::met.brewer(name="Nattier", n=18, type="continuous"))+
+    scale_colour_manual(values=MetBrewer::met.brewer(name="Nattier", n=18, type="continuous"))+
+    # geom_boxplot(outlier.shape = NA)+
+    # tidybayes::stat_halfeye(aes(group = counterfac)) +
+    geom_vline(xintercept = 0,
+               linetype = "dashed", 
+               colour="grey50") +
+    xlab("Population trend") + 
+    ylab("Counterfactual") +
+    coord_cartesian(xlim = c(-0.05,0.05))+
+    theme_minimal()+
+    theme(axis.title.x = element_text(size=12,
+                                      margin = margin(t = 10, r = 0, b = 0, l = 0)), 
+          axis.title.y = element_text(size=12,
+                                      margin = margin(t = 0, r = 10, b = 0, l = 0)),
+          axis.line.x = element_line(color="black", linewidth = 0.5),
+          axis.line.y = element_line(color="black", linewidth = 0.5),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          axis.text.x = element_text(color="black", size = 12),
+          axis.text.y = element_text(color="black", size = 12),
+          strip.text.x = element_text(size = 12),
+          axis.ticks = element_line(color="black"),
+          plot.title = element_text(hjust = 0.5),
+          legend.position = "none"))
+
+ggsave("Results/counterfactualsthree.pdf", p3, 
+       width = 6, height = 14)
 
 # Estimate the difference in population trend
 
@@ -105,7 +255,7 @@ counterfac_diff <- do.call("rbind",
 
 # Let's plot it 
 
-counterfac_diff %>% 
+x <- counterfac_diff %>% 
   group_by(counterfac) %>% 
   summarise(m=mean(.value))
 
