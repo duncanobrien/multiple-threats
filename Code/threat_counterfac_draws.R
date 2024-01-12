@@ -68,7 +68,7 @@ threat_counterfac_draws <- function(model, threat_comns,
                             
                             nw_data <- model$data %>%
                               # Filter out the populations not exposed to threat
-                              filter_at(threat_cols, any_vars(. != "0")) %>% 
+                              filter_at(threatcols, any_vars(. != "0")) %>% 
                               # Set the
                               mutate(across(all_of(counterfac_cols),
                                             ~factor("0",levels = c("0","1")))) %>% #generate the data grid
