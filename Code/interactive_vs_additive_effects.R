@@ -109,44 +109,6 @@ test_data3 <-  mod_dat_full %>%
 
 ggplot(subset(test_data3,ID %in% sample(ID,5)),aes(x=scaled_time,y=y_centered,col= factor(ID))) + geom_line()
 
-#why negative y values
-
-##########################################################################################
-## Duncan first attempt interactive vs additive ##
-##########################################################################################
-intvadd_data <- test_data3 %>%
-  dplyr::mutate(n_threats = case_when(
-    n.threat == 0 ~ "Additive",
-    n.threat == 1 ~ "Additive",
-    TRUE ~ "Interactive"
-  ),
-  across(pollution:none,~as.factor(.x)))
-
-
-mod_intvadd <- brm(bf(y_centered ~  #divide by maximum then log, then center first value on 0
-                        scaled_year*habitatl*n_threats +
-                        scaled_year*climatechange*n_threats +
-                        scaled_year*invasive*n_threats +
-                        scaled_year*exploitation*n_threats +
-                        scaled_year*disease*n_threats + #time centered on the mean time 
-                        (-1 + scaled_time|series) +
-                        #(-1 + scaled_time|SpeciesName) + 
-                        #(-1 + scaled_time|Realm) 
-                        - 1 #include realm/spp as slopes, x intercepts
-                      ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
-),
-data = subset(intvadd_data,ID %in% sample(ID,150)), 
-family = gaussian(),
-iter = 2000,
-refresh=100,
-#backend = "cmdstanr",
-chains = 4,
-control=list(adapt_delta=0.975,max_treedepth = 15),
-cores = 4)
-
-saveRDS(mod_intvadd,"Results/models/simple-slopes-intvadd.RDS")
-
-
 ##########################################################################################
 ## Tom suggestion interactive vs additive ##
 ##########################################################################################
@@ -303,19 +265,27 @@ ggplot(data = na.omit(post_intvadd_diff),
                          merge(select(post_interval_intvadd_diff,-.value),
                                by = c("threat_group","threats")) %>%
                          subset(.width == 0.8)
-                       ,aes(fill = interaction.type),alpha=0.5) +
+                       ,aes(fill = interaction.type),alpha=0.5,normalize = "xy") +
   ggdist::geom_pointinterval(data = post_interval_intvadd_diff,
-                             aes(xmin = .lower, xmax = .upper)) +
+                             aes(xmin = .lower, xmax = .upper,col = interaction.type),alpha=0.5) +
+  geom_point(data = subset(post_interval_intvadd_diff,.width == 0.8), 
+             aes(x = .value,col = interaction.type,fill = interaction.type),shape = 21,alpha=0.5,size = 3) +
   geom_vline(xintercept = 0, linetype = "dashed", colour="grey50") +
   coord_cartesian(xlim = c(-0.25,0.25)) + 
   scale_fill_manual(values = c("#694364",
                                "#1E63B3",
-                               "#B32315"), name = "") + 
+                               "#B32315"), name = "",
+                    guide = guide_legend(override.aes = list(color = NA,shape = 2) )) + 
+  scale_color_manual(values = c("#694364",
+                               "#1E63B3",
+                               "#B32315"), guide = "none") + 
   #facet_wrap(~threat_group) + 
   xlab( expression(paste("Additive ",partialdiff,"y","/",partialdiff,"x"," - interactive ",partialdiff,"y","/",partialdiff,"x"))) + 
   ylab("Threat combination") + 
   theme_minimal()
 
+ggsave("Results/Figure3.pdf",last_plot(),
+       height = 8,width = 8,dpi = 300)
 
 post_intvadd_diff_syns <- post_intvadd_diff  %>%
   na.omit() %>% #drop missing threats 

@@ -11,7 +11,7 @@
 #' post_draws <- threat_post_draws(model = brms_mod1, threat_comns = c("climatechange","pollution","invasive"))
 require(foreach)
 
-threat_counterfac_draws <- function(model, threat_comns, 
+threat_counterfac_draws <- function(model, threat_comns, re.form = NULL,
                                     ndraws = 1000, n.cores = 4, ...){
   
    cl <- parallel::makeCluster(n.cores)
@@ -76,7 +76,7 @@ threat_counterfac_draws <- function(model, threat_comns,
                             # Make the predictons 
                             tmp <- brms::posterior_epred(model,
                                                          newdata = nw_data,
-                                                         re.form = NA,
+                                                         re.form = re.form,
                                                          incl_autocor = FALSE,
                                                          sort = TRUE,
                                                          ndraws = ndraws) %>% #extract posterior draws for the above data grid

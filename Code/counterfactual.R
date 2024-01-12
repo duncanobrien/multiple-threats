@@ -41,7 +41,8 @@ threat_cols <-  colnames(m1$data)[grepl(paste(c("pollution","habitatl",
 # Predict the population trends in the "no intervention" scenario
 
 pop_perd <- brms::posterior_epred(m1,
-                                  newdata = m1$data %>% filter_at(threat_cols, any_vars(. != "0")),
+                                  newdata = m1$data %>% 
+                                    filter_at(threat_cols, any_vars(. != "0")),
                                   re.form = NA,
                                   incl_autocor = FALSE,
                                   sort = TRUE, 
@@ -62,6 +63,7 @@ pop_perd <- brms::posterior_epred(m1,
 
 counter_fac_data <- threat_counterfac_draws(m1,
                                             threat_comns = threat_cols,
+                                            re.form = NA,
                                             ndraws = 100,
                                             n.cores = 6) %>%
   # Join with the none counterfactual scenario that we just created
@@ -111,7 +113,7 @@ scenarios_mean <- counter_fac_data %>%
              colour="grey50") +
     xlab("Population trend") + 
     ylab("Counterfactual") +
-    coord_flip(xlim = c(-0.05,0.05))+
+   coord_flip(xlim = c(-0.05,0.05))+
     theme_minimal()+
     theme(axis.title.x = element_text(size=12,
                                     margin = margin(t = 10, r = 0, b = 0, l = 0)), 

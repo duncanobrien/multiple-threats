@@ -1,3 +1,11 @@
+library(tidyverse)
+library(ggdist)
+require(patchwork)
+
+mod_intvadd3 <- readRDS("Results/models/simple-slopes-intvadd3.RDS")
+
+source("Code/prep_data_grid_fn.R")
+source("Code/threat_post_draws.R")
 
 all_threats = c("none","pollution","habitatl","climatechange","invasive", "exploitation","disease")
 
@@ -32,7 +40,8 @@ post_dydx <- do.call("rbind",lapply(all_threats,function(x){
 dydx_interval <- post_dydx  %>%
   #subset(!grepl("[[:lower:]]*\\.[[:lower:]]*\\.",threat)) %>%
   group_by(threat_group,int_group) %>%
-  ggdist::median_qi(.width = c(.95, .8, .5),.exclude = c(".draw", "threat")) #extract distribution information
+  ggdist::median_qi(.width = c(.95, .8, .5),.exclude = c(".draw", "threat")) %>% #extract distribution information
+  mutate(int_group = ifelse(int_group == "single","Singular","Interactive"))
 
 threat_palette<-c(MetBrewer::met.brewer(name="Hokusai1", n=6, type="continuous"))
 
@@ -42,20 +51,22 @@ palatte <- data.frame(threat_group = unique(subset(post_dydx,threat != "none")$t
 plot_dydx_threats <- post_dydx %>%
   subset(threat != "none") %>%
   left_join(palatte,by = "threat_group") %>%
-  mutate(fill_col = factor(fill_col))
+  mutate(fill_col = factor(fill_col),
+         int_group = ifelse(int_group == "single","Singular","Interactive"))
 
 p1 <- ggplot(data = plot_dydx_threats, 
        aes(x = .value,y=int_group)) +
-  tidybayes::stat_slab(data = subset(plot_dydx_threats,int_group == "single"),
-                       aes(fill = fill_col,group = threat), alpha=0.3) +
-  tidybayes::stat_slab(data = subset(plot_dydx_threats,int_group == "combined"),
-                       aes(fill = fill_col,group = threat,col = fill_col), alpha=0.2) +
+  tidybayes::stat_slab(data = subset(plot_dydx_threats,int_group == "Singular"),
+                       aes(fill = fill_col,group = threat), alpha=0.3,normalize = "groups") +
+  tidybayes::stat_slab(data = subset(plot_dydx_threats,int_group == "Interactive"),
+                       aes(fill = fill_col,group = threat,col = fill_col), alpha=0.2,normalize = "panels") +
   ggdist::geom_pointinterval(data = subset(dydx_interval,threat_group != "none"),
                              aes(xmin = .lower, xmax = .upper),position = position_dodge()) +
   geom_vline(xintercept = 0, linetype = "dashed", colour="grey50") +
-  xlab("Population trend") + 
-  ylab("Threat") + 
+  xlab(expression(paste("Population trend (",partialdiff,"y","/",partialdiff,"x)"))) + 
+  ylab("Threat combination") + 
   coord_cartesian(xlim = c(-0.2,0.2)) +
+  scale_x_continuous(breaks= seq(-0.1,0.1,by=0.1)) + 
   facet_wrap(~threat_group) +
   scale_fill_manual(values = levels(plot_dydx_threats$fill_col),guide = "none") + 
   scale_color_manual(values = levels(plot_dydx_threats$fill_col),guide = "none") + 
@@ -89,9 +100,8 @@ p2 <- ggplot(data = post_dydx_none,
   ggdist::geom_pointinterval(data = dydx_none_interval,
                              aes(xmin = .lower, xmax = .upper)) +
   geom_vline(xintercept = 0, linetype = "dashed", colour="grey50") +
-  xlab("Population trend") + 
-  ylab("Threat") + 
-  coord_cartesian(xlim = c(-0.2,0.2)) +
+  xlab(expression(paste("Population trend (",partialdiff,"y","/",partialdiff,"x)"))) + 
+  #coord_cartesian(xlim = c(-0.1,0.1)) +
   facet_wrap(~threat) +
   theme_minimal()+
   theme(axis.title.x = element_text(size=12,
@@ -109,9 +119,10 @@ p2 <- ggplot(data = post_dydx_none,
         plot.title = element_text(hjust = 0.5),
         plot.margin = unit(c(0,0,0,0), "pt"))
 
-require(patchwork)
+p1 + (p2/patchwork::plot_spacer() + plot_layout(heights  = c(1,1))) + plot_layout(widths = c(2,0.8)) 
 
-p1 + (p2/plot_spacer() + plot_layout(heights  = c(1,1))) + plot_layout(widths = c(2,1.5)) 
+ggsave("Results/Figure2.pdf",last_plot(),
+       height = 8,width = 12,dpi = 300)
 
 dydx_interval_full <- post_dydx  %>%
   #subset(!grepl("[[:lower:]]*\\.[[:lower:]]*\\.",threat)) %>%
@@ -124,7 +135,7 @@ ggplot(data = post_dydx %>%
          rowwise() %>%
          mutate(n.threats =length(unlist(strsplit(threat,"[.]")))), 
        aes(x = .value,y=threat)) +
-  tidybayes::stat_slab(alpha=0.5) +
+  tidybayes::stat_slab(alpha=0.5,normalize = "groups") +
   ggdist::geom_pointinterval(data = dydx_interval_full,
                              aes(xmin = .lower, xmax = .upper)) +
   geom_vline(xintercept = 0, linetype = "dashed", colour="grey50") +
