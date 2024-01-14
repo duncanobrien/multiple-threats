@@ -11,12 +11,14 @@
 #' post_draws <- threat_post_draws(model = brms_mod1, threat_comns = c("climatechange","pollution","invasive"))
 require(foreach)
 
-threat_counterfac_draws <- function(model, threat_comns, re.form = NULL,
+threat_counterfac_draws <- function(model, threat_comns, center_dydx = c("mean","median"),
+                                    re.form = NULL,
                                     ndraws = 1000, n.cores = 4, ...){
   
    cl <- parallel::makeCluster(n.cores)
    doParallel::registerDoParallel(cl)
   
+   center_dydx <- match.arg(center_dydx,c("mean","median"))
   # if(any(!threat_comns %in% c("pollution","habitatl","climatechange","invasive", "exploitation","disease"))){
   #   stop("`threat_comns` may only contain: 'pollution','habitatl','climatechange','invasive','exploitation', or 'disease'")
   # }
@@ -85,7 +87,11 @@ threat_counterfac_draws <- function(model, threat_comns, re.form = NULL,
                               #extract posterior draws for the data used to create the model
                               pivot_longer(-.draw,names_to = "index",values_to = ".value") %>%
                               cbind(nw_data %>% dplyr::select(series, time), row.names = NULL) %>% 
-                              reframe(.value = mean(diff(.value)/diff(time)),.by = c(series,.draw)) %>% 
+                              #reframe(.value = mean(diff(.value)/diff(time)),.by = c(series,.draw)) %>% 
+                              reframe(.value = switch(center_dydx,
+                                                     "mean" = mean(diff(.value)/diff(time)),
+                                                     "median" = median(diff(.value)/diff(time))),
+                                      .by = c(series,.draw)) %>% 
                               mutate(counterfac=paste("No", y))
     
     #   t()

@@ -17,7 +17,7 @@ library(doSNOW)
 
 # Load the model 
 
-m1 <- read_rds("Results/simple-slopes-intvadd2.RDS")
+m1 <- read_rds("Results/models/simple-slopes-intvadd3.RDS")
 
 # Load the functions
 
@@ -46,7 +46,7 @@ pop_perd <- brms::posterior_epred(m1,
                                   re.form = NA,
                                   incl_autocor = FALSE,
                                   sort = TRUE, 
-                                  ndraws = 100) %>% 
+                                  ndraws = 1000) %>% 
   as.data.frame() %>%
   mutate(.draw = 1:NROW(.)) %>%
   #extract posterior draws for the data used to create the model
@@ -64,7 +64,8 @@ pop_perd <- brms::posterior_epred(m1,
 counter_fac_data <- threat_counterfac_draws(m1,
                                             threat_comns = threat_cols,
                                             re.form = NA,
-                                            ndraws = 100,
+                                            ndraws = 1000,
+                                            center_dydx = "mean",
                                             n.cores = 6) %>%
   # Join with the none counterfactual scenario that we just created
   rbind(pop_perd) %>%
@@ -99,7 +100,8 @@ scenarios_mean <- counter_fac_data %>%
                .width = 0,
                alpha=.8,
                justification = -.3, 
-               point_colour = NA) + 
+               point_colour = NA,
+               normalize = "groups") + 
   geom_boxplot(width = .2, 
                outlier.shape = NA, 
                alpha=.8,
@@ -109,9 +111,12 @@ scenarios_mean <- counter_fac_data %>%
   # geom_boxplot(outlier.shape = NA)+
   # tidybayes::stat_halfeye(aes(group = counterfac)) +
   geom_vline(xintercept = 0,
-             linetype = "dashed", 
+             linetype = "solid", 
              colour="grey50") +
-    xlab("Population trend") + 
+    geom_vline(xintercept = subset(scenarios_mean,counterfac == "none")$m,
+               linetype = "dashed", 
+               colour="grey50") +
+    xlab(expression(paste("Population trend (",partialdiff,"y","/",partialdiff,"x)"))) + 
     ylab("Counterfactual") +
    coord_flip(xlim = c(-0.05,0.05))+
     theme_minimal()+
@@ -152,7 +157,8 @@ ggsave("Results/counterfactuals.pdf", p1,
                  .width = 0,
                  alpha=.8,
                  justification = -.3, 
-                 point_colour = NA) + 
+                 point_colour = NA,
+                 normalize = "groups") + 
     geom_boxplot(width = .2, 
                  outlier.shape = NA, 
                  alpha=.8,
@@ -162,9 +168,12 @@ ggsave("Results/counterfactuals.pdf", p1,
     # geom_boxplot(outlier.shape = NA)+
     # tidybayes::stat_halfeye(aes(group = counterfac)) +
     geom_vline(xintercept = 0,
+               linetype = "solid", 
+               colour="grey50") +
+    geom_vline(xintercept = subset(scenarios_mean,counterfac == "none")$m,
                linetype = "dashed", 
                colour="grey50") +
-    xlab("Population trend") + 
+    xlab(expression(paste("Population trend (",partialdiff,"y","/",partialdiff,"x)"))) + 
     ylab("Counterfactual") +
     coord_cartesian(xlim = c(-0.05,0.05))+
     theme_minimal()+
@@ -205,7 +214,8 @@ ggsave("Results/counterfactualstwothreats.pdf", p2,
                  .width = 0,
                  alpha=.8,
                  justification = -.3, 
-                 point_colour = NA) + 
+                 point_colour = NA,
+                 normalize = "xy") + 
     geom_boxplot(width = .2, 
                  outlier.shape = NA, 
                  alpha=.8,
@@ -215,9 +225,12 @@ ggsave("Results/counterfactualstwothreats.pdf", p2,
     # geom_boxplot(outlier.shape = NA)+
     # tidybayes::stat_halfeye(aes(group = counterfac)) +
     geom_vline(xintercept = 0,
+               linetype = "solid", 
+               colour="grey50") +
+    geom_vline(xintercept = subset(scenarios_mean,counterfac == "none")$m,
                linetype = "dashed", 
                colour="grey50") +
-    xlab("Population trend") + 
+    xlab(expression(paste("Population trend (",partialdiff,"y","/",partialdiff,"x)"))) + 
     ylab("Counterfactual") +
     coord_cartesian(xlim = c(-0.05,0.05))+
     theme_minimal()+

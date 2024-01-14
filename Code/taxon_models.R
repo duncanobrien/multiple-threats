@@ -1,7 +1,16 @@
 require(brms)
 require(tidyverse)
+require(patchwork)
 load("Data/LivingPlanetData2.RData")
 
+priors <- c(prior(normal(0, 1), class = b),
+            prior(exponential(1), class = sd),
+            #prior(exponential(1), class = sigma),
+            prior(normal(0,0.25), class = ar))
+
+####################
+# raw data taken from PolCap repository
+####################
 dd_long2 <- dd_long %>%
   group_by(ID) %>%  
   # Calculate population change
@@ -53,18 +62,7 @@ pops <- dd_final %>%
 
 load("Data/SSResults.RData")
 
-pop_data10 <- pop_data %>% 
-  mutate(Year=as.numeric(Year)) %>% 
-  group_by(ID) %>% 
-  filter(length(unique(Year))>=10) %>%
-  select(ID,pollution,habitatl,climatechange,
-         invasive, exploitation,disease) %>%
-  group_by(ID) %>%
-  mutate(none = ifelse(all(is.na(c(pollution,habitatl,climatechange,
-                                   invasive, exploitation,disease))),
-                       "none",NA)) %>%
-  filter(ID %in% pops$ID) %>%
-  distinct()
+# Merge datasets and wrangle in to correct threat format ----------------------------------------------------------
 
 mod_dat_full <- pops %>%
   pivot_longer(c("1950":"2019"), names_to = "year", values_to = "y") %>%
@@ -73,105 +71,368 @@ mod_dat_full <- pops %>%
          series = paste(ID), #factor required for autocorrelation estimation
          threats = factor(ifelse(is.na(threats),"none",threats))) %>% #convert stressors to binary
   mutate(threats = fct_relevel(threats, "none")) %>%
-  #filter(!all(is.na(value))) %>%
-  left_join(pop_data10,by = "ID") %>%
+  left_join(select(pop_data,c(ID,pollution,habitatl,climatechange,
+                              invasive, exploitation,disease)),
+            multiple = "first",by = "ID") %>% #double check. Currently NOT selected timeseries >= 10 years
+  mutate(none = ifelse(all(is.na(c(pollution,habitatl,climatechange,
+                                   invasive, exploitation,disease))),
+                       "none",NA)) %>%
   mutate(across(pollution:none,~ifelse(is.na(.x),"0","1"))) %>% #convert absence of stress to binary
   group_by(ID) %>%
   slice(1:max(which(!is.na(y))))  %>% #remove lagging years containing all NAs (to prevent unbounded interpolation)
-  mutate(scaled_time = scales::rescale(year), #rescale start/end of time series between [0-1] for comparability
+  mutate(scaled_year = c(scale(year,center = TRUE,scale = FALSE)), #center time to 0 for each timeseries
          time = seq_along(year),
-         y_centered = y-(na.omit(y)[1]-0)) %>% #set first value of timeseries to 0 to allow no intercept model
+         scaled_time = c(scale(time,center = TRUE,scale = FALSE)),
+         #y_centered = log(y/max(na.omit(y))), #rescale y by maximum of timeseries and log
+         y_centered = y-(na.omit(y)[1]-0) #recenter y so that first value of timeseries is 0 (to allow all intercepts to be removed)
+  ) %>% 
   ungroup(ID) %>%
-  as.data.frame()
-
-test_data2 <-  mod_dat_full %>% 
   drop_na(y) %>%
-  #filter(series %in% base::sample(unique(series),500)) %>%
   mutate(threats = as.character(threats)) %>%
-  group_by(ID) %>%
-  mutate(centered_year = year-min(year-1), #set first year with data to year 1
-         scaled_time = scales::rescale(year)) %>%
-  ungroup() %>%
   mutate(Taxon= ifelse(Class=="Holocephali"|Class=="Elasmobranchii" | 
-                                   Class=="Myxini"|Class=="Cephalaspidomorphi"|
-                                   Class=="Actinopterygii"|Class=="Sarcopterygii",
-                                 "Fish", 
-                                 ifelse(Class=="Aves", "Birds",
-                                        ifelse(Class=="Mammalia", 
-                                               "Mammals",
-                                               ifelse(Class=="Amphibia", 
-                                                      "Amphibians",
-                                                      ifelse(Class=="Reptilia",
-                                                             "Reptiles", "NA"))))))
+                         Class=="Myxini"|Class=="Cephalaspidomorphi"|
+                         Class=="Actinopterygii"|Class=="Sarcopterygii",
+                       "Fish", 
+                       ifelse(Class=="Aves", "Birds",
+                              ifelse(Class=="Mammalia", 
+                                     "Mammals",
+                                     ifelse(Class=="Amphibia", 
+                                            "Amphibians",
+                                            ifelse(Class=="Reptilia",
+                                                   "Reptiles", "NA"))))))
 
-##########################################################################################
-## simple slopes ##
-##########################################################################################
+thrts_2 <-combn(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),2) #create all unique two way combinations of threats
+thrts_3 <-combn(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),3) #create all unique three way combinations of threats
 
-mod2_am <- brm(bf(y_centered ~  scaled_time*none + 
-                     scaled_time*pollution + scaled_time*habitatl+
-                     scaled_time*climatechange + scaled_time*invasive+ 
-                     scaled_time*exploitation+scaled_time*disease + 
-                     (-1 + time|series) + (1|SpeciesName) - 1
-                   ,autocor = ~ar(time = time,gr = series,p=1)
-                  ),
-               data =test_data2 %>% filter(Taxon=="Amphibians"), 
-               family = gaussian(),
-               iter = 2000,
-               refresh=100,
-               #backend = "cmdstanr",
-               chains = 4,
-               control=list(adapt_delta=0.975,max_treedepth = 15),
-               cores = 4)
-saveRDS(mod2_am,"Results/models/simple-slopes-amph.RDS")
+mod_dat_full <- mod_dat_full %>% #create a new dataframe with columns containing "0"/"1" for each combination of threats. "0" = combination not present, "1" = combination present
+  bind_cols(purrr::pmap_dfc(.l = list(.x = thrts_2[1,], #threat 1
+                                      .y = thrts_2[2,]),#threat 2
+                            ~ mod_dat_full %>%
+                              select({{.x}},{{.y}},ID) %>% #select just the necessary columns (threat 1, threat 2 and timeseries ID)
+                              mutate(!!sym(paste(.x,.y,sep=".")) :=  
+                                       ifelse(all(!!sym(.x) == "1") & all(!!sym(.y) == "1"),"1","0"),
+                                     .by = ID) %>% #dynamically create new column of whether both threat 1 and threat 2 are 1's
+                              select(4))%>%
+              select_if(function(x)sum(x == "1") > 0) #drop columns where no observed combination of threats as will prevent model fitting
+  ) %>%
+  bind_cols(purrr::pmap_dfc(.l = list(thrts_3[1,], #threat 1
+                                      thrts_3[2,], #threat 2
+                                      thrts_3[3,]),#threat 3
+                            function(.x,.y,.z) mod_dat_full %>%
+                              select({{.x}},{{.y}},{{.z}},ID) %>% #select just the necessary columns (threat 1, threat 2 and timeseries ID)
+                              mutate(!!sym(paste(.x,.y,.z,sep=".")) :=  
+                                       ifelse(all(!!sym(.x) == "1") & all(!!sym(.y) == "1") & all(!!sym(.z) == "1"),"1","0"),
+                                     .by = ID) %>% #dynamically create new column of whether both threat 1, threat 2 and threat 3 are 1's
+                              select(5)) %>%
+              select_if(function(x)sum(x == "1") > 0) #drop columns where no observed combination of threats
+  ) %>%
+  group_by(ID) %>% 
+  filter(length(unique(year))>=5) %>% #filter to timeseries > 5 time points
+  ungroup() %>%
+  select_if(function(x)!all(x == "0")) 
 
-mod2_bir <- brm(bf(y_centered ~  scaled_time*none + 
-                    scaled_time*pollution + scaled_time*habitatl+
-                    scaled_time*climatechange + scaled_time*invasive+ 
-                    scaled_time*exploitation+scaled_time*disease + 
-                    (-1 + time|series) + (1|SpeciesName) - 1
-                  ,autocor = ~ar(time = time,gr = series,p=1)
-                  ),
-                data =test_data2 %>% filter(Taxon=="Birds"), 
-                family = gaussian(),
-                iter = 2000,
-                refresh=100,
-                #backend = "cmdstanr",
-                chains = 4,
-                control=list(adapt_delta=0.975,max_treedepth = 15),
-                cores = 4)
-saveRDS(mod2_bir,"Results/models/simple-slopes-birds.RDS")
+# Taxon specific models ----------------------------------------------------------
 
-mod2_mam <- brm(bf(y_centered ~  scaled_time*none + 
-                     scaled_time*pollution + scaled_time*habitatl+
-                     scaled_time*climatechange + scaled_time*invasive+ 
-                     scaled_time*exploitation+scaled_time*disease + 
-                     (-1 + time|series) + (1|SpeciesName) - 1
-                   ,autocor = ~ar(time = time,gr = series,p=1)
-                   ),
-                data =test_data2 %>% filter(Taxon=="Mammals"), 
-                family = gaussian(),
-                iter = 2000,
-                refresh=100,
-                #backend = "cmdstanr",
-                chains = 4,
-                control=list(adapt_delta=0.975,max_treedepth = 15),
-                cores = 4)
-saveRDS(mod2_mam,"Results/models/simple-slopes-mammals.RDS")
+mod_dat_amph <- mod_dat_full %>% filter(Taxon=="Amphibians") %>%
+  select_if(function(x)!all(x == "0"))
 
-mod2_rep <- brm(bf(y_centered ~  scaled_time*none + 
-                     scaled_time*pollution + scaled_time*habitatl+
-                     scaled_time*climatechange + scaled_time*invasive+ 
-                     scaled_time*exploitation+scaled_time*disease + 
-                     (-1 + time|series) + (1|SpeciesName) - 1
-                   ,autocor = ~ar(time = time,gr = series,p=1)
-                   ),
-                data =test_data2 %>% filter(Taxon=="Reptiles"), 
-                family = gaussian(),
-                iter = 2000,
-                refresh=100,
-                #backend = "cmdstanr",
-                chains = 4,
-                control=list(adapt_delta=0.975,max_treedepth = 15),
-                cores = 4)
-saveRDS(mod2_rep,"Results/models/simple-slopes-rept.RDS")
+rhs_amph <- paste0(paste("scaled_year*",
+                         colnames(mod_dat_amph)[
+                           grepl(paste(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),
+                                       collapse = "|"),
+                                 colnames(mod_dat_amph))],
+                         sep ="",collapse = " + "),
+                   " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) + -1") #create the right hand side of the model formula with interactions between scaled_year and all threat combinations
+form_amph <- as.formula(paste("y_centered", "~", rhs_amph)) #combine y_centered and rhs into a model formula
+
+intvadd_amph <- brm(bf(form_amph #include realm/spp as slopes, x intercepts
+                       ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
+                       ),
+                    data = mod_dat_amph, 
+                    family = gaussian(),
+                    iter = 3000,
+                    refresh=100,
+                    #backend = "cmdstanr",
+                    prior = priors,
+                    chains = 4,
+                    control=list(adapt_delta=0.975,max_treedepth = 12),
+                    cores = 4)
+saveRDS(intvadd_amph,"Results/models/intvadd_amph_mod.RDS")
+
+mod_dat_bir <- mod_dat_full %>% filter(Taxon=="Birds") %>%
+  select_if(function(x)!all(x == "0"))
+
+rhs_bir <- paste0(paste("scaled_year*",
+                        colnames(mod_dat_bir)[
+                          grepl(paste(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),
+                                      collapse = "|"),
+                                colnames(mod_dat_bir))],
+                        sep ="",collapse = " + "),
+                  " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) + -1") #create the right hand side of the model formula with interactions between scaled_year and all threat combinations
+form_bir <- as.formula(paste("y_centered", "~", rhs_bir)) #combine y_centered and rhs into a model formula
+
+intvadd_bir <- brm(bf(form_bir #include realm/spp as slopes, x intercepts
+                      ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
+                      ),
+                   data = mod_dat_bir, 
+                   family = gaussian(),
+                   iter = 3000,
+                   refresh=100,
+                   #backend = "cmdstanr",
+                   prior = priors,
+                   chains = 4,
+                   control=list(adapt_delta=0.975,max_treedepth = 12),
+                   cores = 4)
+saveRDS(intvadd_bir,"Results/models/intvadd_bir_mod.RDS")
+
+mod_dat_mam <- mod_dat_full %>% filter(Taxon=="Mammals") %>%
+  select_if(function(x)!all(x == "0"))
+
+rhs_mam <- paste0(paste("scaled_year*",
+                        colnames(mod_dat_mam)[
+                          grepl(paste(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),
+                                      collapse = "|"),
+                                colnames(mod_dat_mam))],
+                        sep ="",collapse = " + "),
+                  " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) + -1") #create the right hand side of the model formula with interactions between scaled_year and all threat combinations
+form_mam <- as.formula(paste("y_centered", "~", rhs_mam)) #combine y_centered and rhs into a model formula
+
+intvadd_mam <- brm(bf(form_mam #include realm/spp as slopes, x intercepts
+                      ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
+                      ),
+                   data = mod_dat_mam, 
+                   family = gaussian(),
+                   iter = 3000,
+                   refresh=100,
+                   #backend = "cmdstanr",
+                   prior = priors,
+                   chains = 4,
+                   control=list(adapt_delta=0.975,max_treedepth = 12),
+                   cores = 4)
+saveRDS(intvadd_mam,"Results/models/intvadd_mam_mod.RDS")
+
+mod_dat_rep <- mod_dat_full %>% filter(Taxon=="Reptiles") %>%
+  select_if(function(x)!all(x == "0"))
+
+rhs_rep <- paste0(paste("scaled_year*",
+                        colnames(mod_dat_rep)[
+                          grepl(paste(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),
+                                      collapse = "|"),
+                                colnames(mod_dat_rep))],
+                        sep ="",collapse = " + "),
+                  " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) + -1") #create the right hand side of the model formula with interactions between scaled_year and all threat combinations
+form_rep <- as.formula(paste("y_centered", "~", rhs_rep)) #combine y_centered and rhs into a model formula
+
+intvadd_rep <- brm(bf(form_rep #include realm/spp as slopes, x intercepts
+                      ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
+                      ),
+                   data = mod_dat_rep, 
+                   family = gaussian(),
+                   iter = 3000,
+                   refresh=100,
+                   #backend = "cmdstanr",
+                   prior = priors,
+                   chains = 4,
+                   control=list(adapt_delta=0.975,max_treedepth = 15),
+                   cores = 4)
+saveRDS(intvadd_rep,"Results/models/intvadd_rep_mod.RDS")
+
+# Extract trends as derivatives for each realm ----------------------------------------------------------
+source("Code/prep_data_grid_fn.R")
+source("Code/threat_post_draws.R")
+
+intvadd_amph <- readRDS("Results/models/intvadd_amph_mod.RDS")
+
+intvadd_bir <- readRDS("Results/models/intvadd_bir_mod.RDS")
+
+intvadd_mam <- readRDS("Results/models/intvadd_mam_mod.RDS")
+
+intvadd_rep <- readRDS("Results/models/intvadd_rep_mod.RDS")
+
+all_threats = c("none","pollution","habitatl","climatechange","invasive", "exploitation","disease")
+
+taxon_model_ls <- list("Amphibians" = intvadd_amph,"Birds" = intvadd_bir,"Mammals" = intvadd_mam,"Reptiles" = intvadd_rep)
+
+post_dydx_taxon <- lapply(seq_along(taxon_model_ls), FUN = function(X){
+  
+  threatcols <- colnames(taxon_model_ls[[X]]$data)[grepl(paste(all_threats,collapse = "|"),colnames(taxon_model_ls[[X]]$data))] 
+  postdraws <- threat_post_draws(model = taxon_model_ls[[X]],
+                                 threat_comns = c("none",threatcols),
+                                 ndraws = 1000,
+                                 nuisance = c("series","SpeciesName"),
+                                 n.cores = 4) #estimate posterior draws for all threat singles and combinations
+  
+  post_dydx <- do.call("rbind",lapply(all_threats,function(x){
+    out <- postdraws %>%
+      subset(grepl(x,threat)) %>% #subset to focal threat
+      reframe(.value = mean(diff(.value)/diff(time)),.by = c(threat,.draw)) %>% #for each posterior timeseries, estimate the first derivative 
+      ungroup() %>%
+      mutate(int_group = ifelse(grepl("\\.",threat),"combined","single"))%>% #create grouping column for whether the threat is singular or a combination
+      mutate(threat_group = x) %>% #overall threat grouping
+      group_by(threat) %>%
+      ungroup() 
+    return(out)
+  })) %>%
+    mutate(Taxon = names(taxon_model_ls)[X])
+  
+  dydx_interval <- post_dydx  %>%
+    group_by(Taxon,threat_group,int_group) %>%
+    ggdist::median_qi(.width = c(.95, .8, .5),.exclude = c(".draw", "threat")) %>% #extract distribution information
+    mutate(int_group = ifelse(int_group == "single","Singular","Interactive"))
+  
+  return(list("dydx" = post_dydx,"interval" = dydx_interval))
+})
+
+post_dyxd_taxon <- do.call("rbind",lapply(post_dydx_taxon, `[[`, 'dydx')) %>%
+  mutate(threat_group = fct_relevel(factor(threat_group),"none"))
+
+post_dydx_interval_taxon <- do.call("rbind",lapply(post_dydx_taxon, `[[`, 'interval')) %>%
+  mutate(threat_group = fct_relevel(factor(threat_group),"none"))
+
+threat_palette<-c(MetBrewer::met.brewer(name="Hokusai1", n=6, type="continuous"))
+
+palatte <- data.frame(threat_group = unique(subset(post_dyxd_taxon,threat != "none")$threat_group),
+                      fill_col = threat_palette)
+
+plot_dydx_taxon <- post_dyxd_taxon %>%
+  #subset(threat != "none") %>%
+  left_join(palatte,by = "threat_group") %>%
+  mutate(fill_col = factor(fill_col),
+         int_group = ifelse(int_group == "single","Singular","Interactive")) 
+
+# Extract additive vs interactive for each realm ----------------------------------------------------------
+intvadd_amph <- readRDS("Results/models/intvadd_amph_mod.RDS")
+
+intvadd_bir <- readRDS("Results/models/intvadd_bir_mod.RDS")
+
+intvadd_mam <- readRDS("Results/models/intvadd_mam_mod.RDS")
+
+intvadd_rep <- readRDS("Results/models/intvadd_rep_mod.RDS")
+
+all_threats_intvadd = c("pollution","habitatl","climatechange","invasive", "exploitation","disease")
+
+taxon_model_ls <- list("Amphibians" = intvadd_amph,"Birds" = intvadd_bir,"Mammals" = intvadd_mam,"Reptiles" = intvadd_rep)
+
+post_intvadd_taxon <- lapply(seq_along(taxon_model_ls), FUN = function(X){
+  
+  threatcols <- colnames(taxon_model_ls[[X]]$data)[grepl(paste(all_threats_intvadd,collapse = "|"),colnames(taxon_model_ls[[X]]$data))] 
+  
+  additive_cols <- do.call("c",lapply(strsplit(threatcols,"[.]"),function(x){
+    paste(x,collapse = " + ")
+  })) #create addtive columns. i.e. "threat1 + threat2"
+  
+  target_cols <- unique(c(threatcols,additive_cols))
+  
+  postdraws_taxon <- threat_post_draws(model = taxon_model_ls[[X]],
+                                       threat_comns = target_cols,
+                                       ndraws = 1000,
+                                       nuisance = c("series","SpeciesName"),
+                                       n.cores = 4) %>%
+    mutate(combo_group = case_when(
+      grepl("[.]",threat) ~ "interactive",
+      grepl("\\+",threat) ~ "additive",
+      TRUE ~ "single")) #posterior timeseries estimated for each threat combination: singular (e.g. "threat1"), interactive (e.g. "threat1.threat2") and additive (e.g. "threat1 + threat2")
+  
+  post_dydx_taxon <- do.call("rbind",lapply(all_threats,function(x){
+    
+    out <- postdraws_taxon %>%
+      subset(grepl(x,threat)) %>% #filter to focal threat
+      reframe(.value = mean(diff(.value)/diff(time)),.by = c(combo_group,threat,.draw)) %>% #estimate each timeseries' first derivative
+      group_by(threat) %>%
+      #filter(!any(.value >= abs(0.5))) %>% #drop highly variable threats
+      ungroup() %>%
+      mutate(threat_group = x) 
+    
+    return(out)
+  })) 
+  
+  post_taxon_diff <- do.call("rbind",lapply(additive_cols[grepl("\\+",additive_cols)],function(x){
+    
+    post_dydx_taxon %>%
+      subset(threat %in% c(x,gsub(" \\+ ",".",x))) %>% #subset to shared additive and interactive threats (e.g. "threat1.threat2" and "threat1 + threat2")
+      reframe(.value = diff(c(.value[2],.value[1])), .by = c(threat_group,.draw)) %>% #find difference in derivatives between additive and interactive threats
+      mutate(threats = gsub(" \\+ ",".",x) ) #name threat combination
+    
+  })) %>%
+    mutate(Taxon = names(taxon_model_ls)[X])
+  
+  post_interval_taxon_diff <- post_taxon_diff %>%
+    na.omit() %>% #drop missing threats 
+    group_by(Taxon,threat_group,threats) %>%
+    ggdist::median_qi(.width = c(.95, .8, .5),.exclude = c(".draw")) %>%  #extract distribution information
+    mutate(interaction.type = case_when(
+      .upper < 0 ~ "synergistic",
+      .lower > 0 ~ "antagonistic",
+      TRUE ~ "additive"
+    )) 
+  
+  return(list("dydx_diff" = post_taxon_diff,"interval" = post_interval_taxon_diff))
+})
+
+post_intvadd_taxon_diff <- do.call("rbind",lapply(post_intvadd_taxon, `[[`, 'dydx_diff'))
+
+post_intvadd_interval_taxon_diff <- do.call("rbind",lapply(post_intvadd_taxon, `[[`, 'interval'))
+
+# Visualise ----------------------------------------------------------
+
+ggplot(data = plot_dydx_taxon, 
+       aes(x = .value,y=int_group)) +
+  tidybayes::stat_slab(data = subset(plot_dydx_taxon,int_group == "Singular"),
+                       aes(fill = fill_col,group = threat), alpha=0.3,normalize = "groups") +
+  tidybayes::stat_slab(data = subset(plot_dydx_taxon,int_group == "Interactive"),
+                       aes(fill = fill_col,group = threat,col = fill_col), alpha=0.2,normalize = "panels") +
+  ggdist::geom_pointinterval(data = subset(post_dydx_interval_taxon),
+                             aes(xmin = .lower, xmax = .upper),position = position_dodge()) +
+  geom_vline(xintercept = 0, linetype = "dashed", colour="grey50") +
+  xlab(expression(paste("Population trend (",partialdiff,"y","/",partialdiff,"x)"))) + 
+  ylab("Threat combination") + 
+  coord_cartesian(xlim = c(-0.2,0.2)) +
+  scale_x_continuous(breaks= seq(-0.1,0.1,by=0.1)) + 
+  facet_wrap(~threat_group+Taxon,ncol = 4,scales = "free_y") +
+  scale_fill_manual(values = levels(plot_dydx_taxon$fill_col),guide = "none") + 
+  scale_color_manual(values = levels(plot_dydx_taxon$fill_col),guide = "none") + 
+  theme_minimal()+
+  theme(axis.title.x = element_text(size=12,
+                                    margin = margin(t = 10, r = 0, b = 0, l = 0)), 
+        axis.title.y = element_text(size=12,
+                                    margin = margin(t = 0, r = 10, b = 0, l = 0)),
+        axis.line.x = element_line(color="black", linewidth = 0.5),
+        axis.line.y = element_line(color="black", linewidth = 0.5),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(color="black", size = 12),
+        axis.text.y = element_text(color="black", size = 12),
+        strip.text.x = element_text(size = 12),
+        axis.ticks = element_line(color="black"),
+        plot.title = element_text(hjust = 0.5))
+
+ggsave("Results/Figure2_taxon.pdf",last_plot(),
+       height = 10,width = 12,dpi = 300)
+
+ggplot(data = na.omit(post_intvadd_taxon_diff), 
+       aes(x = .value,y=threats)) +
+  ggdist::stat_slab(data = na.omit(post_intvadd_taxon_diff) %>%
+                      merge(select(post_intvadd_interval_taxon_diff,-.value),
+                            by = c("Taxon","threat_group","threats")) %>%
+                      subset(.width == 0.8)
+                    ,aes(fill = interaction.type),alpha=0.5,normalize = "xy") +
+  ggdist::geom_pointinterval(data = post_intvadd_interval_taxon_diff,
+                             aes(xmin = .lower, xmax = .upper,col = interaction.type),alpha=0.5) +
+  geom_point(data = subset(post_intvadd_interval_taxon_diff,.width == 0.8), 
+             aes(x = .value,col = interaction.type,fill = interaction.type),shape = 21,alpha=0.5,size = 3) +
+  geom_vline(xintercept = 0, linetype = "dashed", colour="grey50") +
+  coord_cartesian(xlim = c(-0.25,0.25)) + 
+  scale_fill_manual(values = c("#694364",
+                               "#1E63B3",
+                               "#B32315"), name = "",
+                    guide = guide_legend(override.aes = list(color = NA,shape = 2) )) + 
+  scale_color_manual(values = c("#694364",
+                                "#1E63B3",
+                                "#B32315"), guide = "none") + 
+  facet_wrap(~Taxon,ncol = 4) + 
+  xlab( expression(paste("Additive ",partialdiff,"y","/",partialdiff,"x"," - interactive ",partialdiff,"y","/",partialdiff,"x"))) + 
+  ylab("Threat combination") + 
+  theme_minimal()
+
+ggsave("Results/Figure3_taxon.pdf",last_plot(),
+       height = 10,width = 12,dpi = 300)
