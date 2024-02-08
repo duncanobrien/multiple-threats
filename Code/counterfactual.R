@@ -17,7 +17,7 @@ library(doSNOW)
 
 # Load the model 
 
-m1 <- read_rds("Results/models/simple-slopes-intvadd3.RDS")
+m1 <- read_rds("Results/mod_intvadd_spatial.RDS")
 
 # Load the functions
 
@@ -89,7 +89,7 @@ scenarios_mean <- counter_fac_data %>%
   group_by(counterfac) %>% 
   mutate(pos=median(.value)) %>% 
   ungroup() %>%   
-  filter(number==1) %>% 
+  filter(number==1, counterfac!="none") %>% 
   # Start the plot
   ggplot(aes(x = .value,
              y=reorder(counterfac, pos),
@@ -118,7 +118,7 @@ scenarios_mean <- counter_fac_data %>%
                colour="grey50") +
     xlab(expression(paste("Population trend (",partialdiff,"y","/",partialdiff,"x)"))) + 
     ylab("Counterfactual") +
-   coord_flip(xlim = c(-0.05,0.05))+
+   coord_flip(xlim = c(-0.2,0.2))+
     theme_minimal()+
     theme(axis.title.x = element_text(size=12,
                                     margin = margin(t = 10, r = 0, b = 0, l = 0)), 
@@ -136,7 +136,7 @@ scenarios_mean <- counter_fac_data %>%
         legend.position = "none"))
 
 ggsave("Results/counterfactuals.pdf", p1, 
-       width = 8, height = 6)
+       width = 12, height = 6)
 
 # Two threats
 
