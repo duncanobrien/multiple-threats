@@ -25,11 +25,7 @@ source("Code/threat_counterfac_draws.R")
 
 # Conterfactual tests ----------------------------------------------------------
 
-# trends for each of the counterfactual scenarios 
-
-threat_cols <- c("pollution","habitatl",
-                 "climatechange","invasive", 
-                 "exploitation","disease")
+# create a vector with all the threats in the dataset
 
 threat_cols <-  colnames(m1$data)[grepl(paste(c("pollution","habitatl",
                                                 "climatechange","invasive", 
@@ -60,6 +56,7 @@ pop_perd <- brms::posterior_epred(m1,
 # Create the different counterfactual scenarios
 
 # We use the function counterfactual draws to estimate the different population 
+# trends under the different scenarios removing one threat
 
 counter_fac_data <- threat_counterfac_draws(m1,
                                             threat_comns = threat_cols,
@@ -72,16 +69,21 @@ counter_fac_data <- threat_counterfac_draws(m1,
   # Made "none" as the first level of the counterfactual 
   mutate(counterfac = fct_relevel(counterfac, "none"))
 
-threat_palette<-c(MetBrewer::met.brewer(name="Hokusai1", n=6, type="continuous"), "grey60")
-
-# Lets have a look at it 
+# We summarise it 
 
 scenarios_mean <- counter_fac_data %>% 
   group_by(counterfac) %>% 
   summarise(m=median(.value)) %>% 
   arrange(desc(m))
 
-# One threat
+# Plots ------------------------------------------------------------------------
+
+# Create a palette
+
+threat_palette<-c(MetBrewer::met.brewer(name="Hokusai1", n=6, type="continuous"),
+                  "grey60")
+
+## One threat scenarios --------------------------------------------------------
 
 (p1 <- counter_fac_data %>% 
   # add a variable counting the number of threats
@@ -135,10 +137,12 @@ scenarios_mean <- counter_fac_data %>%
         plot.title = element_text(hjust = 0.5),
         legend.position = "none"))
 
-ggsave("Results/counterfactuals.pdf", p1, 
+# Save it
+
+ggsave("Results/Figure4.pdf", p1, 
        width = 12, height = 6)
 
-# Two threats
+## Two threats scenarios -------------------------------------------------------
 
 (p2 <- counter_fac_data %>% 
     # add a variable counting the number of threats
@@ -165,8 +169,6 @@ ggsave("Results/counterfactuals.pdf", p1,
                  colour="black") +
     scale_fill_manual(values=MetBrewer::met.brewer(name="Tiepolo", n=15, type="continuous"))+
     scale_colour_manual(values=MetBrewer::met.brewer(name="Tiepolo", n=15, type="continuous"))+
-    # geom_boxplot(outlier.shape = NA)+
-    # tidybayes::stat_halfeye(aes(group = counterfac)) +
     geom_vline(xintercept = 0,
                linetype = "solid", 
                colour="grey50") +
@@ -192,10 +194,12 @@ ggsave("Results/counterfactuals.pdf", p1,
           plot.title = element_text(hjust = 0.5),
           legend.position = "none"))
 
+# Save it
+
 ggsave("Results/counterfactualstwothreats.pdf", p2, 
        width = 6, height = 12)
 
-# Three threats
+## Three threats scenarios -----------------------------------------------------
 
 (p3 <- counter_fac_data %>% 
     # add a variable counting the number of threats
@@ -248,6 +252,8 @@ ggsave("Results/counterfactualstwothreats.pdf", p2,
           axis.ticks = element_line(color="black"),
           plot.title = element_text(hjust = 0.5),
           legend.position = "none"))
+
+# Save it
 
 ggsave("Results/counterfactualsthree.pdf", p3, 
        width = 6, height = 14)
