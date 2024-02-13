@@ -18,9 +18,8 @@ priors <- c(prior(normal(0, 1), class = b),
             #prior(exponential(1), class = sigma),
             prior(normal(0,0.25), class = ar))
 
-####################
 # raw data taken from PolCap repository
-####################
+
 dd_long2 <- dd_long %>%
   group_by(ID) %>%  
   # Calculate population change
@@ -88,8 +87,11 @@ pop_data10 <- pop_data %>% # pop10 selected following original repository
 ####################
 # further wrangling in to long format and prepare explanatory variables
 ####################
+
 mod_dat_full <- pops %>%
-  pivot_longer(c("1950":"2019"), names_to = "year", values_to = "y") %>%
+  pivot_longer(c("1950":"2019"), 
+               names_to = "year", 
+               values_to = "y") %>%
   mutate(year = as.numeric(year),
          #time = seq_along(year),
          series = paste(ID), #factor required for autocorrelation estimation
@@ -107,7 +109,6 @@ mod_dat_full <- pops %>%
   mutate(scaled_year = c(scale(year,center = TRUE,scale = FALSE)), #center time to 0 for each timeseries
          time = seq_along(year),
          scaled_time = c(scale(time,center = TRUE,scale = FALSE)),
-         #y_centered = log(y/max(na.omit(y))), #rescale y by maximum of timeseries and log
          y_centered = y-(na.omit(y)[1]-0) #recenter y so that first value of timeseries is 0 (to allow all intercepts to be removed)
   ) %>% 
   ungroup(ID) %>%
@@ -122,8 +123,9 @@ thrts_2 <-combn(c("pollution","habitatl","climatechange","invasive", "exploitati
 thrts_3 <-combn(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),3) #create all unique three way combinations of threats
 
 test_data2 <-  mod_dat_full %>% 
-  drop_na(y) #double check how to deal with infrequently sampled timeseries. Current model is able to deal via the ar process
-#filter(series %in% base::sample(unique(series),500)) %>%
+  drop_na(y) #double check how to deal with infrequently sampled timeseries. 
+# Current model is able to deal via the ar process
+# filter(series %in% base::sample(unique(series),500)) %>%
 
 intvadd_dat2 <- test_data2 %>% #create a new dataframe with columns containing "0"/"1" for each combination of threats. "0" = combination not present, "1" = combination present
   bind_cols(purrr::pmap_dfc(.l = list(.x = thrts_2[1,], #threat 1
