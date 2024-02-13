@@ -1,154 +1,64 @@
-require(brms)
-require(tidyverse)
+# --------------------------------------------------------------------------------------- #
+# - FILE NAME:   taxon_models.R         
+# - DATE:        11/02/2024
+# - DESCRIPTION: Code to run the individual models for each taxonomic group.
+# - AUTHORS: Pol Capdevila Lanzaco (pcapdevila@ub.edu), Duncan O'brien (duncan.a.obrien@gmail.com)
+# --------------------------------------------------------------------------------------- #
+
+rm(list=ls(all=TRUE)) #remove everything
+
+# Libraries
+
+library(tidyverse)
+library(brms)
+
+# Function to normalise the spatial distance
 
 norm_range <- function(x){
   (x-min(x))/(max(x)-min(x))
 }
 
-load("Data/LivingPlanetData2.RData")
+# Load the model data
+
+load("Data/data_models.RData")
+
+# Set the priors 
 
 priors <- c(prior(normal(0, 1), class = b),
             prior(exponential(1), class = sd),
-            #prior(exponential(1), class = sigma),
             prior(normal(0,0.25), class = ar))
 
-####################
-# raw data taken from PolCap repository
-####################
-dd_long2 <- dd_long %>%
-  group_by(ID) %>%  
-  # Calculate population change
-  mutate(popchange=log(Count+(max(Count, na.rm=T) /100)),
-         #ifelse(Count<1, log(Count/(max(Count,na.rm = T))*100+1), 
-         #        log(Count+1)),
-         Protected_status=gsub(" .*", "", Protected_status)) %>% 
-  # Remove any groupings we have created in the pipe
-  ungroup()
-
-# Add the biogeographical region
-
-dd_long2 <- dd_long2 %>%
-  mutate(T_realm=na_if(T_realm, "NULL"),
-         M_realm=na_if(M_realm, "NULL"),
-         FW_realm=na_if(FW_realm, "NULL"),
-         Realm=coalesce(T_realm, M_realm, FW_realm))
-
-# Find the data ids
-
-dd_final <- dd_long2 %>%
-  group_by(ID) %>%
-  drop_na(popchange) %>%
-  mutate(start=min(Year),
-         end=max(Year),
-         Duration=end-start) %>% 
-  filter(Duration>9)
-
-# Spread the data again
-
-pops <- dd_final %>%
-  mutate(year = as.factor(as.character(Year))) %>% 
-  dplyr::select(ID, SpeciesName, Class, Order,
-                System, Latitude, Longitude,
-                Region,
-                Protected_status, n.threat, 
-                Primary_threat,
-                Secondary_threat,
-                Tertiary_threat,
-                Managed,
-                Realm,
-                threats, Duration, 
-                Year, year, popchange) %>%
-  drop_na(popchange) %>%
-  group_by(ID) %>%
-  dplyr::select(-Year) %>%
-  filter(length(unique(year))>=5) %>% 
-  pivot_wider(names_from = year, values_from = popchange)
-
-load("Data/SSResults.RData")
-
-# Merge datasets and wrangle in to correct threat format ----------------------------------------------------------
-
-mod_dat_full <- pops %>%
-  pivot_longer(c("1950":"2019"), names_to = "year", values_to = "y") %>%
-  mutate(year = as.numeric(year),
-         #time = seq_along(year),
-         series = paste(ID), #factor required for autocorrelation estimation
-         threats = factor(ifelse(is.na(threats),"none",threats))) %>% #convert stressors to binary
-  mutate(threats = fct_relevel(threats, "none")) %>%
-  left_join(select(pop_data,c(ID,pollution,habitatl,climatechange,
-                              invasive, exploitation,disease)),
-            multiple = "first",by = "ID") %>% #double check. Currently NOT selected timeseries >= 10 years
-  mutate(none = ifelse(all(is.na(c(pollution,habitatl,climatechange,
-                                   invasive, exploitation,disease))),
-                       "none",NA)) %>%
-  mutate(across(pollution:none,~ifelse(is.na(.x),"0","1"))) %>% #convert absence of stress to binary
-  group_by(ID) %>%
-  slice(1:max(which(!is.na(y))))  %>% #remove lagging years containing all NAs (to prevent unbounded interpolation)
-  mutate(scaled_year = c(scale(year,center = TRUE,scale = FALSE)), #center time to 0 for each timeseries
-         time = seq_along(year),
-         scaled_time = c(scale(time,center = TRUE,scale = FALSE)),
-         #y_centered = log(y/max(na.omit(y))), #rescale y by maximum of timeseries and log
-         y_centered = y-(na.omit(y)[1]-0) #recenter y so that first value of timeseries is 0 (to allow all intercepts to be removed)
-  ) %>% 
-  ungroup(ID) %>%
-  drop_na(y) %>%
-  mutate(threats = as.character(threats)) %>%
-  mutate(Taxon= ifelse(Class=="Holocephali"|Class=="Elasmobranchii" | 
-                         Class=="Myxini"|Class=="Cephalaspidomorphi"|
-                         Class=="Actinopterygii"|Class=="Sarcopterygii",
-                       "Fish", 
-                       ifelse(Class=="Aves", "Birds",
-                              ifelse(Class=="Mammalia", 
-                                     "Mammals",
-                                     ifelse(Class=="Amphibia", 
-                                            "Amphibians",
-                                            ifelse(Class=="Reptilia",
-                                                   "Reptiles", "NA"))))))
-
-thrts_2 <-combn(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),2) #create all unique two way combinations of threats
-thrts_3 <-combn(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),3) #create all unique three way combinations of threats
-
-mod_dat_full <- mod_dat_full %>% #create a new dataframe with columns containing "0"/"1" for each combination of threats. "0" = combination not present, "1" = combination present
-  bind_cols(purrr::pmap_dfc(.l = list(.x = thrts_2[1,], #threat 1
-                                      .y = thrts_2[2,]),#threat 2
-                            ~ mod_dat_full %>%
-                              select({{.x}},{{.y}},ID) %>% #select just the necessary columns (threat 1, threat 2 and timeseries ID)
-                              mutate(!!sym(paste(.x,.y,sep=".")) :=  
-                                       ifelse(all(!!sym(.x) == "1") & all(!!sym(.y) == "1"),"1","0"),
-                                     .by = ID) %>% #dynamically create new column of whether both threat 1 and threat 2 are 1's
-                              select(4))%>%
-              select_if(function(x)sum(x == "1") > 0) #drop columns where no observed combination of threats as will prevent model fitting
-  ) %>%
-  bind_cols(purrr::pmap_dfc(.l = list(thrts_3[1,], #threat 1
-                                      thrts_3[2,], #threat 2
-                                      thrts_3[3,]),#threat 3
-                            function(.x,.y,.z) mod_dat_full %>%
-                              select({{.x}},{{.y}},{{.z}},ID) %>% #select just the necessary columns (threat 1, threat 2 and timeseries ID)
-                              mutate(!!sym(paste(.x,.y,.z,sep=".")) :=  
-                                       ifelse(all(!!sym(.x) == "1") & all(!!sym(.y) == "1") & all(!!sym(.z) == "1"),"1","0"),
-                                     .by = ID) %>% #dynamically create new column of whether both threat 1, threat 2 and threat 3 are 1's
-                              select(5)) %>%
-              select_if(function(x)sum(x == "1") > 0) #drop columns where no observed combination of threats
-  ) %>%
-  group_by(ID) %>% 
-  filter(length(unique(year))>=5) %>% #filter to timeseries > 5 time points
-  ungroup() %>%
-  select_if(function(x)!all(x == "0")) %>%
-  mutate(Site = paste(Latitude,Longitude,sep = "_"))
-
 # Taxon specific models ----------------------------------------------------------
+## Amphibians ----
+# Filter amphibians 
 
-mod_dat_amph <- mod_dat_full %>% filter(Taxon=="Amphibians") %>%
+mod_dat_amph <- mod_dat_full %>% 
+  filter(Taxon=="Amphibians") %>%
   select_if(function(x)!all(x == "0"))
+
+# Subset the locations 
 
 amph_locs <- distinct(mod_dat_amph[,c("Longitude","Latitude")]) %>%
   mutate(Site = paste(Latitude,Longitude,sep = "_"))
 
-spa_mat_trim_amph = as.matrix(geosphere::distm(amph_locs[,c("Longitude","Latitude")], fun = geosphere::distHaversine))/1000 #km distance between sites
-spa_mat_trim_amph = norm_range(spa_mat_trim_amph) #Before this step you could also exponentiate the distances, at the moment we are assuming a linear decay, which is probably fine.
-spa_mat_trim_amph = abs(spa_mat_trim_amph - 1)
-colnames(spa_mat_trim_amph) = amph_locs$Site
-rownames(spa_mat_trim_amph) = amph_locs$Site
+# Get the spatial distance matrix 
+
+spa_mat_trim_amph <- as.matrix(geosphere::distm(amph_locs[,c("Longitude","Latitude")], 
+                                                fun = geosphere::distHaversine))/1000 #km distance between sites
+# Normalise the distance
+
+spa_mat_trim_amph <- norm_range(spa_mat_trim_amph) 
+
+# Get the absolute value 
+
+spa_mat_trim_amph <- abs(spa_mat_trim_amph - 1)
+
+# Set the col and rownames 
+
+colnames(spa_mat_trim_amph) <- amph_locs$Site
+rownames(spa_mat_trim_amph) <- amph_locs$Site
+
+# Create the formula
 
 rhs_amph <- paste0(paste("scaled_year*",
                         colnames(mod_dat_amph)[
@@ -158,35 +68,57 @@ rhs_amph <- paste0(paste("scaled_year*",
                         sep ="",collapse = " + "),
                   " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
                (0 + scaled_year|gr(Site, cov = spa_mat)) + -1")
+# Combine y_centered and rhs into a model formula
 
-form_amph <- as.formula(paste("y_centered", "~", rhs_amph)) #combine y_centered and rhs into a model formula
+form_amph <- as.formula(paste("y_centered", "~", rhs_amph)) 
 
-intvadd_amph <- brm(bf(form_amph #include realm/spp as slopes, x intercepts
-                       ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
-                       ),
+# Run the model 
+
+mod_amph <- brm(bf(form_amph #include realm/spp as slopes, x intercepts
+                       ,autocor = ~ar(time = time,gr = series,p=1)),
                     data = mod_dat_amph, 
                     data2 = list(spa_mat = spa_mat_trim_amph),
                     family = gaussian(),
-                    iter = 3000,
+                    iter = 5000,
                     refresh=100,
                     #backend = "cmdstanr",
                     prior = priors,
                     chains = 4,
                     control=list(adapt_delta=0.975,max_treedepth = 12),
                     cores = 4)
-saveRDS(intvadd_amph,"Results/models/intvadd_amph_mod_spatial.RDS")
+# Save the model 
+
+saveRDS(mod_amph,"Results/models/amph_mod.RDS")
+
+## Birds ----
+# Filter birds
 
 mod_dat_bir <- mod_dat_full %>% filter(Taxon=="Birds") %>%
   select_if(function(x)!all(x == "0"))
 
+# Subset the locations 
+
 bir_locs <- distinct(mod_dat_bir[,c("Longitude","Latitude")]) %>%
   mutate(Site = paste(Latitude,Longitude,sep = "_"))
 
-spa_mat_trim_bir = as.matrix(geosphere::distm(bir_locs[,c("Longitude","Latitude")], fun = geosphere::distHaversine))/1000 #km distance between sites
-spa_mat_trim_bir = norm_range(spa_mat_trim_bir) #Before this step you could also exponentiate the distances, at the moment we are assuming a linear decay, which is probably fine.
-spa_mat_trim_bir = abs(spa_mat_trim_bir - 1)
-colnames(spa_mat_trim_bir) = bir_locs$Site
-rownames(spa_mat_trim_bir) = bir_locs$Site
+# Get the spatial distance matrix 
+
+spa_mat_trim_bir <- as.matrix(geosphere::distm(bir_locs[,c("Longitude","Latitude")], 
+                                                fun = geosphere::distHaversine))/1000 #km distance between sites
+# Normalise the distance
+
+spa_mat_trim_bir <- norm_range(spa_mat_trim_bir) 
+
+# Get the absolute value 
+
+spa_mat_trim_bir <- abs(spa_mat_trim_bir - 1)
+
+# Set the col and rownames 
+
+colnames(spa_mat_trim_bir) <- bir_locs$Site
+rownames(spa_mat_trim_bir) <- bir_locs$Site
+
+# Create the formula
 
 rhs_bir <- paste0(paste("scaled_year*",
                          colnames(mod_dat_bir)[
@@ -196,293 +128,208 @@ rhs_bir <- paste0(paste("scaled_year*",
                          sep ="",collapse = " + "),
                    " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
                (0 + scaled_year|gr(Site, cov = spa_mat)) + -1")
-form_bir <- as.formula(paste("y_centered", "~", rhs_bir)) #combine y_centered and rhs into a model formula
+# Combine y_centered and rhs into a model formula
 
-intvadd_bir <- brm(bf(form_bir #include realm/spp as slopes, x intercepts
-                      ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
-                      ),
-                   data = mod_dat_bir, 
-                   data2 = list(spa_mat = spa_mat_trim_bir),
-                   family = gaussian(),
-                   iter = 3000,
-                   refresh=100,
-                   #backend = "cmdstanr",
-                   prior = priors,
-                   chains = 4,
-                   control=list(adapt_delta=0.975,max_treedepth = 12),
-                   cores = 4)
-saveRDS(intvadd_bir,"Results/models/intvadd_bir_mod_spatial.RDS")
+form_bir <- as.formula(paste("y_centered", "~", rhs_bir)) 
+
+# Run the model 
+
+mod_bir <- brm(bf(form_bir #include realm/spp as slopes, x intercepts
+                   ,autocor = ~ar(time = time,gr = series,p=1)),
+                data = mod_dat_bir, 
+                data2 = list(spa_mat = spa_mat_trim_bir),
+                family = gaussian(),
+                iter = 5000,
+                refresh=100,
+                #backend = "cmdstanr",
+                prior = priors,
+                chains = 4,
+                control=list(adapt_delta=0.975,max_treedepth = 12),
+                cores = 4)
+# Save the model 
+
+saveRDS(mod_bir,"Results/models/bir_mod.RDS")
+
+## Bony fishes ----
+# Filter Bony fishes
+
+mod_dat_fish <- mod_dat_full %>% filter(Taxon=="Fish") %>%
+  select_if(function(x)!all(x == "0"))
+
+# Subset the locations 
+
+fish_locs <- distinct(mod_dat_fish[,c("Longitude","Latitude")]) %>%
+  mutate(Site = paste(Latitude,Longitude,sep = "_"))
+
+# Get the spatial distance matrix 
+
+spa_mat_trim_fish <- as.matrix(geosphere::distm(fish_locs[,c("Longitude","Latitude")], 
+                                               fun = geosphere::distHaversine))/1000 #km distance between sites
+# Normalise the distance
+
+spa_mat_trim_fish <- norm_range(spa_mat_trim_fish) 
+
+# Get the absolute value 
+
+spa_mat_trim_fish <- abs(spa_mat_trim_fish - 1)
+
+# Set the col and rownames 
+
+colnames(spa_mat_trim_fish) <- fish_locs$Site
+rownames(spa_mat_trim_fish) <- fish_locs$Site
+
+# Create the formula
+
+rhs_fish <- paste0(paste("scaled_year*",
+                        colnames(mod_dat_fish)[
+                          grepl(paste(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),
+                                      collapse = "|"),
+                                colnames(mod_dat_fish))],
+                        sep ="",collapse = " + "),
+                  " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
+               (0 + scaled_year|gr(Site, cov = spa_mat)) + -1")
+
+# Combine y_centered and rhs into a model formula
+
+form_fish <- as.formula(paste("y_centered", "~", rhs_fish)) 
+
+# Run the model 
+
+mod_fish <- brm(bf(form_fish #include realm/spp as slopes, x intercepts
+                  ,autocor = ~ar(time = time,gr = series,p=1)),
+               data = mod_dat_fish, 
+               data2 = list(spa_mat = spa_mat_trim_fish),
+               family = gaussian(),
+               iter = 5000,
+               refresh=100,
+               #backend = "cmdstanr",
+               prior = priors,
+               chains = 4,
+               control=list(adapt_delta=0.975,max_treedepth = 12),
+               cores = 4)
+# Save the model 
+
+saveRDS(mod_fish,"Results/models/fish_mod.RDS")
+
+
+## Mammals ----
+# Filter mammals 
 
 mod_dat_mam <- mod_dat_full %>% filter(Taxon=="Mammals") %>%
   select_if(function(x)!all(x == "0"))
 
+# Subset the locations 
+
 mam_locs <- distinct(mod_dat_mam[,c("Longitude","Latitude")]) %>%
   mutate(Site = paste(Latitude,Longitude,sep = "_"))
 
-spa_mat_trim_mam = as.matrix(geosphere::distm(mam_locs[,c("Longitude","Latitude")], fun = geosphere::distHaversine))/1000 #km distance between sites
-spa_mat_trim_mam = norm_range(spa_mat_trim_mam) #Before this step you could also exponentiate the distances, at the moment we are assuming a linear decay, which is probably fine.
-spa_mat_trim_mam = abs(spa_mat_trim_mam - 1)
-colnames(spa_mat_trim_mam) = mam_locs$Site
-rownames(spa_mat_trim_mam) = mam_locs$Site
+# Get the spatial distance matrix 
+
+spa_mat_trim_mam <- as.matrix(geosphere::distm(mam_locs[,c("Longitude","Latitude")], 
+                                                fun = geosphere::distHaversine))/1000 #km distance between sites
+# Normalise the distance
+
+spa_mat_trim_mam <- norm_range(spa_mat_trim_mam) 
+
+# Get the absolute value 
+
+spa_mat_trim_mam <- abs(spa_mat_trim_mam - 1)
+
+# Set the col and rownames 
+
+colnames(spa_mat_trim_mam) <- mam_locs$Site
+rownames(spa_mat_trim_mam) <- mam_locs$Site
+
+# Create the formula
 
 rhs_mam <- paste0(paste("scaled_year*",
-                        colnames(mod_dat_mam)[
-                          grepl(paste(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),
-                                      collapse = "|"),
-                                colnames(mod_dat_mam))],
-                        sep ="",collapse = " + "),
-                  " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
+                         colnames(mod_dat_mam)[
+                           grepl(paste(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),
+                                       collapse = "|"),
+                                 colnames(mod_dat_mam))],
+                         sep ="",collapse = " + "),
+                   " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
                (0 + scaled_year|gr(Site, cov = spa_mat)) + -1")
-form_mam <- as.formula(paste("y_centered", "~", rhs_mam)) #combine y_centered and rhs into a model formula
 
-intvadd_mam <- brm(bf(form_mam #include realm/spp as slopes, x intercepts
-                      ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
-                      ),
-                   data = mod_dat_mam, 
-                   data2 = list(spa_mat = spa_mat_trim_mam),
-                   family = gaussian(),
-                   iter = 3000,
-                   refresh=100,
-                   #backend = "cmdstanr",
-                   prior = priors,
-                   chains = 4,
-                   control=list(adapt_delta=0.975,max_treedepth = 12),
-                   cores = 4)
-saveRDS(intvadd_mam,"Results/models/intvadd_mam_mod_spatial.RDS")
+# Combine y_centered and rhs into a model formula
+
+form_mam <- as.formula(paste("y_centered", "~", rhs_mam)) 
+
+# Run the model 
+
+mod_mam <- brm(bf(form_mam #include realm/spp as slopes, x intercepts
+                   ,autocor = ~ar(time = time,gr = series,p=1)),
+                data = mod_dat_mam, 
+                data2 = list(spa_mat = spa_mat_trim_mam),
+                family = gaussian(),
+                iter = 5000,
+                refresh=100,
+                #backend = "cmdstanr",
+                prior = priors,
+                chains = 4,
+                control=list(adapt_delta=0.975,max_treedepth = 12),
+                cores = 4)
+# Save the model 
+
+saveRDS(mod_mam,"Results/models/mam_mod.RDS")
+
+## Reptiles ----
+# Filter reptiles
 
 mod_dat_rep <- mod_dat_full %>% filter(Taxon=="Reptiles") %>%
   select_if(function(x)!all(x == "0"))
 
+# Subset the locations 
+
 rep_locs <- distinct(mod_dat_rep[,c("Longitude","Latitude")]) %>%
   mutate(Site = paste(Latitude,Longitude,sep = "_"))
 
-spa_mat_trim_rep = as.matrix(geosphere::distm(rep_locs[,c("Longitude","Latitude")], fun = geosphere::distHaversine))/1000 #km distance between sites
-spa_mat_trim_rep = norm_range(spa_mat_trim_rep) #Before this step you could also exponentiate the distances, at the moment we are assuming a linear decay, which is probably fine.
-spa_mat_trim_rep = abs(spa_mat_trim_rep - 1)
-colnames(spa_mat_trim_rep) = rep_locs$Site
-rownames(spa_mat_trim_rep) = rep_locs$Site
+# Get the spatial distance matrix 
+
+spa_mat_trim_rep <- as.matrix(geosphere::distm(rep_locs[,c("Longitude","Latitude")], 
+                                                fun = geosphere::distHaversine))/1000 #km distance between sites
+# Normalise the distance
+
+spa_mat_trim_rep <- norm_range(spa_mat_trim_rep) 
+
+# Get the absolute value 
+
+spa_mat_trim_rep <- abs(spa_mat_trim_rep - 1)
+
+# Set the col and rownames 
+
+colnames(spa_mat_trim_rep) <- rep_locs$Site
+rownames(spa_mat_trim_rep) <- rep_locs$Site
+
+# Create the formula
 
 rhs_rep <- paste0(paste("scaled_year*",
-                        colnames(mod_dat_rep)[
-                          grepl(paste(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),
-                                      collapse = "|"),
-                                colnames(mod_dat_rep))],
-                        sep ="",collapse = " + "),
-                  " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
+                         colnames(mod_dat_rep)[
+                           grepl(paste(c("pollution","habitatl","climatechange","invasive", "exploitation","disease"),
+                                       collapse = "|"),
+                                 colnames(mod_dat_rep))],
+                         sep ="",collapse = " + "),
+                   " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
                (0 + scaled_year|gr(Site, cov = spa_mat)) + -1")
-form_rep <- as.formula(paste("y_centered", "~", rhs_rep)) #combine y_centered and rhs into a model formula
 
-intvadd_rep <- brm(bf(form_rep #include realm/spp as slopes, x intercepts
-                      ,autocor = ~ar(time = time,gr = series,p=1) #ou/arima process
-                      ),
-                   data = mod_dat_rep, 
-                   data2 = list(spa_mat = spa_mat_trim_rep),
-                   family = gaussian(),
-                   iter = 5000,
-                   refresh=100,
-                   #backend = "cmdstanr",
-                   prior = priors,
-                   chains = 4,
-                   control=list(adapt_delta=0.975,max_treedepth = 15),
-                   cores = 4)
-saveRDS(intvadd_rep,"Results/models/intvadd_rep_mod_spatial.RDS")
+# Combine y_centered and rhs into a model formula
 
-# Extract trends as derivatives for each realm ----------------------------------------------------------
-source("Code/prep_data_grid_fn.R")
-source("Code/threat_post_draws.R")
+form_rep <- as.formula(paste("y_centered", "~", rhs_rep)) 
 
-intvadd_amph <- readRDS("Results/models/intvadd_amph_mod_spatial.RDS")
+# Run the model 
 
-intvadd_bir <- readRDS("Results/models/intvadd_bir_mod_spatial.RDS")
+mod_rep <- brm(bf(form_rep #include realm/spp as slopes, x intercepts
+                   ,autocor = ~ar(time = time,gr = series,p=1)),
+                data = mod_dat_rep, 
+                data2 = list(spa_mat = spa_mat_trim_rep),
+                family = gaussian(),
+                iter = 5000,
+                refresh=100,
+                #backend = "cmdstanr",
+                prior = priors,
+                chains = 4,
+                control=list(adapt_delta=0.975,max_treedepth = 12),
+                cores = 4)
+# Save the model 
 
-intvadd_mam <- readRDS("Results/models/intvadd_mam_mod_spatial.RDS")
-
-intvadd_rep <- readRDS("Results/models/intvadd_rep_mod_spatial.RDS")
-
-all_threats = c("none","pollution","habitatl","climatechange","invasive", "exploitation","disease")
-
-taxon_model_ls <- list("Amphibians" = intvadd_amph,"Birds" = intvadd_bir,"Mammals" = intvadd_mam,"Reptiles" = intvadd_rep)
-
-post_dydx_taxon <- lapply(seq_along(taxon_model_ls), FUN = function(X){
-  
-  threatcols <- colnames(taxon_model_ls[[X]]$data)[grepl(paste(all_threats,collapse = "|"),colnames(taxon_model_ls[[X]]$data))] 
-  postdraws <- threat_post_draws(model = taxon_model_ls[[X]],
-                                 threat_comns = c("none",threatcols),
-                                 ndraws = 1000,
-                                 nuisance = c("series","SpeciesName"),
-                                 n.cores = 4) #estimate posterior draws for all threat singles and combinations
-  
-  post_dydx <- do.call("rbind",lapply(all_threats,function(x){
-    out <- postdraws %>%
-      subset(grepl(x,threat)) %>% #subset to focal threat
-      reframe(.value = mean(diff(.value)/diff(time)),.by = c(threat,.draw)) %>% #for each posterior timeseries, estimate the first derivative 
-      ungroup() %>%
-      mutate(int_group = ifelse(grepl("\\.",threat),"combined","single"))%>% #create grouping column for whether the threat is singular or a combination
-      mutate(threat_group = x) %>% #overall threat grouping
-      group_by(threat) %>%
-      ungroup() 
-    return(out)
-  })) %>%
-    mutate(Taxon = names(taxon_model_ls)[X])
-  
-  dydx_interval <- post_dydx  %>%
-    group_by(Taxon,threat_group,int_group) %>%
-    ggdist::median_qi(.width = c(.95, .8, .5),.exclude = c(".draw", "threat")) %>% #extract distribution information
-    mutate(int_group = ifelse(int_group == "single","Singular","Interactive"))
-  
-  return(list("dydx" = post_dydx,"interval" = dydx_interval))
-})
-
-post_dyxd_taxon <- do.call("rbind",lapply(post_dydx_taxon, `[[`, 'dydx')) %>%
-  mutate(threat_group = fct_relevel(factor(threat_group),"none"))
-
-post_dydx_interval_taxon <- do.call("rbind",lapply(post_dydx_taxon, `[[`, 'interval')) %>%
-  mutate(threat_group = fct_relevel(factor(threat_group),"none"))
-
-threat_palette<-c(MetBrewer::met.brewer(name="Hokusai1", n=6, type="continuous"))
-
-palatte <- data.frame(threat_group = unique(subset(post_dyxd_taxon,threat != "none")$threat_group),
-                      fill_col = threat_palette)
-
-plot_dydx_taxon <- post_dyxd_taxon %>%
-  #subset(threat != "none") %>%
-  left_join(palatte,by = "threat_group") %>%
-  mutate(fill_col = factor(fill_col),
-         int_group = ifelse(int_group == "single","Singular","Interactive")) 
-
-# Extract additive vs interactive for each realm ----------------------------------------------------------
-intvadd_amph <- readRDS("Results/models/intvadd_amph_mod_spatial.RDS")
-
-intvadd_bir <- readRDS("Results/models/intvadd_bir_mod_spatial.RDS")
-
-intvadd_mam <- readRDS("Results/models/intvadd_mam_mod_spatial.RDS")
-
-intvadd_rep <- readRDS("Results/models/intvadd_rep_mod_spatial.RDS")
-
-all_threats_intvadd = c("pollution","habitatl","climatechange","invasive", "exploitation","disease")
-
-taxon_model_ls <- list("Amphibians" = intvadd_amph,"Birds" = intvadd_bir,"Mammals" = intvadd_mam,"Reptiles" = intvadd_rep)
-
-post_intvadd_taxon <- lapply(seq_along(taxon_model_ls), FUN = function(X){
-  
-  threatcols <- colnames(taxon_model_ls[[X]]$data)[grepl(paste(all_threats_intvadd,collapse = "|"),colnames(taxon_model_ls[[X]]$data))] 
-  
-  additive_cols <- do.call("c",lapply(strsplit(threatcols,"[.]"),function(x){
-    paste(x,collapse = " + ")
-  })) #create addtive columns. i.e. "threat1 + threat2"
-  
-  target_cols <- unique(c(threatcols,additive_cols))
-  
-  postdraws_taxon <- threat_post_draws(model = taxon_model_ls[[X]],
-                                       threat_comns = target_cols,
-                                       ndraws = 1000,
-                                       nuisance = c("series","SpeciesName"),
-                                       n.cores = 4) %>%
-    mutate(combo_group = case_when(
-      grepl("[.]",threat) ~ "interactive",
-      grepl("\\+",threat) ~ "additive",
-      TRUE ~ "single")) #posterior timeseries estimated for each threat combination: singular (e.g. "threat1"), interactive (e.g. "threat1.threat2") and additive (e.g. "threat1 + threat2")
-  
-  post_dydx_taxon <- do.call("rbind",lapply(all_threats,function(x){
-    
-    out <- postdraws_taxon %>%
-      subset(grepl(x,threat)) %>% #filter to focal threat
-      reframe(.value = mean(diff(.value)/diff(time)),.by = c(combo_group,threat,.draw)) %>% #estimate each timeseries' first derivative
-      group_by(threat) %>%
-      #filter(!any(.value >= abs(0.5))) %>% #drop highly variable threats
-      ungroup() %>%
-      mutate(threat_group = x) 
-    
-    return(out)
-  })) 
-  
-  post_taxon_diff <- do.call("rbind",lapply(additive_cols[grepl("\\+",additive_cols)],function(x){
-    
-    post_dydx_taxon %>%
-      subset(threat %in% c(x,gsub(" \\+ ",".",x))) %>% #subset to shared additive and interactive threats (e.g. "threat1.threat2" and "threat1 + threat2")
-      reframe(.value = diff(c(.value[2],.value[1])), .by = c(threat_group,.draw)) %>% #find difference in derivatives between additive and interactive threats
-      mutate(threats = gsub(" \\+ ",".",x) ) #name threat combination
-    
-  })) %>%
-    mutate(Taxon = names(taxon_model_ls)[X])
-  
-  post_interval_taxon_diff <- post_taxon_diff %>%
-    na.omit() %>% #drop missing threats 
-    group_by(Taxon,threat_group,threats) %>%
-    ggdist::median_qi(.width = c(.95, .8, .5),.exclude = c(".draw")) %>%  #extract distribution information
-    mutate(interaction.type = case_when(
-      .upper < 0 ~ "synergistic",
-      .lower > 0 ~ "antagonistic",
-      TRUE ~ "additive"
-    )) 
-  
-  return(list("dydx_diff" = post_taxon_diff,"interval" = post_interval_taxon_diff))
-})
-
-post_intvadd_taxon_diff <- do.call("rbind",lapply(post_intvadd_taxon, `[[`, 'dydx_diff'))
-
-post_intvadd_interval_taxon_diff <- do.call("rbind",lapply(post_intvadd_taxon, `[[`, 'interval'))
-
-# Visualise ----------------------------------------------------------
-
-ggplot(data = plot_dydx_taxon, 
-       aes(x = .value,y=int_group)) +
-  tidybayes::stat_slab(data = subset(plot_dydx_taxon,int_group == "Singular"),
-                       aes(fill = fill_col,group = threat), alpha=0.3,normalize = "groups") +
-  tidybayes::stat_slab(data = subset(plot_dydx_taxon,int_group == "Interactive"),
-                       aes(fill = fill_col,group = threat,col = fill_col), alpha=0.2,normalize = "panels") +
-  ggdist::geom_pointinterval(data = subset(post_dydx_interval_taxon),
-                             aes(xmin = .lower, xmax = .upper),position = position_dodge()) +
-  geom_vline(xintercept = 0, linetype = "dashed", colour="grey50") +
-  xlab(expression(paste("Population trend (",partialdiff,"y","/",partialdiff,"x)"))) + 
-  ylab("Threat combination") + 
-  coord_cartesian(xlim = c(-0.2,0.2)) +
-  scale_x_continuous(breaks= seq(-0.1,0.1,by=0.1)) + 
-  facet_wrap(~threat_group+Taxon,ncol = 4,scales = "free_y") +
-  scale_fill_manual(values = levels(plot_dydx_taxon$fill_col),guide = "none") + 
-  scale_color_manual(values = levels(plot_dydx_taxon$fill_col),guide = "none") + 
-  theme_minimal()+
-  theme(axis.title.x = element_text(size=12,
-                                    margin = margin(t = 10, r = 0, b = 0, l = 0)), 
-        axis.title.y = element_text(size=12,
-                                    margin = margin(t = 0, r = 10, b = 0, l = 0)),
-        axis.line.x = element_line(color="black", linewidth = 0.5),
-        axis.line.y = element_line(color="black", linewidth = 0.5),
-        panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        axis.text.x = element_text(color="black", size = 12),
-        axis.text.y = element_text(color="black", size = 12),
-        strip.text.x = element_text(size = 12),
-        axis.ticks = element_line(color="black"),
-        plot.title = element_text(hjust = 0.5))
-
-ggsave("Results/Figure2_taxon_spatial.pdf",last_plot(),
-       height = 10,width = 12,dpi = 300)
-
-ggplot(data = na.omit(post_intvadd_taxon_diff), 
-       aes(x = .value,y=threats)) +
-  ggdist::stat_slab(data = na.omit(post_intvadd_taxon_diff) %>%
-                      merge(select(post_intvadd_interval_taxon_diff,-.value),
-                            by = c("Taxon","threat_group","threats")) %>%
-                      subset(.width == 0.8)
-                    ,aes(fill = interaction.type),alpha=0.5,normalize = "xy") +
-  ggdist::geom_pointinterval(data = post_intvadd_interval_taxon_diff,
-                             aes(xmin = .lower, xmax = .upper,col = interaction.type),alpha=0.5) +
-  geom_point(data = subset(post_intvadd_interval_taxon_diff,.width == 0.8), 
-             aes(x = .value,col = interaction.type,fill = interaction.type),shape = 21,alpha=0.5,size = 3) +
-  geom_vline(xintercept = 0, linetype = "dashed", colour="grey50") +
-  coord_cartesian(xlim = c(-0.25,0.25)) + 
-  scale_fill_manual(values = c("#694364",
-                               "#1E63B3",
-                               "#B32315"), name = "",
-                    guide = guide_legend(override.aes = list(color = NA,shape = 2) )) + 
-  scale_color_manual(values = c("#694364",
-                                "#1E63B3",
-                                "#B32315"), guide = "none") + 
-  facet_wrap(~Taxon,ncol = 4) + 
-  xlab( expression(paste("Additive ",partialdiff,"y","/",partialdiff,"x"," - interactive ",partialdiff,"y","/",partialdiff,"x"))) + 
-  ylab("Threat combination") + 
-  theme_minimal()
-
-ggsave("Results/Figure3_taxon_spatial.pdf",last_plot(),
-       height = 10,width = 12,dpi = 300)
+saveRDS(mod_rep,"Results/models/rep_mod.RDS")
