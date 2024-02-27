@@ -11,13 +11,14 @@ rm(list=ls(all=TRUE)) #remove everything
 
 library(brms)
 library(tidyverse)
+library(ggridges)
 library(tidybayes)
 library(parallel)
 library(doSNOW)
 
 # Load the model 
 
-m1 <- read_rds("Results/mod_intvadd_spatial.RDS")
+m1 <- read_rds("Results/models/mod_global.RDS")
 
 # Load the functions
 
@@ -85,11 +86,13 @@ threat_palette<-c(MetBrewer::met.brewer(name="Hokusai1", n=6, type="continuous")
 
 ## One threat scenarios --------------------------------------------------------
 
-(p1 <- counter_fac_data %>% 
+(g4 <- counter_fac_data %>% 
   # add a variable counting the number of threats
   mutate(number=str_count(counterfac, '\\.')+1) %>%
   group_by(counterfac) %>% 
-  mutate(pos=median(.value)) %>% 
+  mutate(pos=median(.value),
+         counterfac = gsub("habitatl", "habitat loss", counterfac),
+         counterfac = gsub("climatechange", "climate change", counterfac)) %>% 
   ungroup() %>%   
   filter(number==1, counterfac!="none") %>% 
   # Start the plot
@@ -97,21 +100,23 @@ threat_palette<-c(MetBrewer::met.brewer(name="Hokusai1", n=6, type="continuous")
              y=reorder(counterfac, pos),
              fill=counterfac, 
              colour=counterfac)) +
-  stat_halfeye(adjust = .5, 
-               width = .6, 
-               .width = 0,
-               alpha=.8,
-               justification = -.3, 
-               point_colour = NA,
-               normalize = "groups") + 
-  geom_boxplot(width = .2, 
-               outlier.shape = NA, 
-               alpha=.8,
-               colour="black") +
+   geom_violin(alpha=0.5, colour="white")+
+   geom_boxplot(aes(colour=counterfac), 
+                fill="white", width = .2,
+                outlier.shape = NA)+
+  # stat_halfeye(adjust = .5, 
+  #              width = .6, 
+  #              .width = 0,
+  #              alpha=.8,
+  #              justification = -.3, 
+  #              point_colour = NA,
+  #              normalize = "groups") + 
+  # geom_boxplot(width = .2, 
+  #              outlier.shape = NA, 
+  #              alpha=.8,
+  #              colour="black") +
   scale_fill_manual(values=c(threat_palette))+
   scale_colour_manual(values=threat_palette)+
-  # geom_boxplot(outlier.shape = NA)+
-  # tidybayes::stat_halfeye(aes(group = counterfac)) +
   geom_vline(xintercept = 0,
              linetype = "solid", 
              colour="grey50") +
@@ -139,7 +144,7 @@ threat_palette<-c(MetBrewer::met.brewer(name="Hokusai1", n=6, type="continuous")
 
 # Save it
 
-ggsave("Results/Figure4.pdf", p1, 
+ggsave("Results/Figure4.pdf", g4, 
        width = 12, height = 6)
 
 ## Two threats scenarios -------------------------------------------------------
@@ -154,19 +159,11 @@ ggsave("Results/Figure4.pdf", p1,
     # Start the plot
     ggplot(aes(x = .value,
                y=reorder(counterfac, pos),
-               fill=counterfac, 
-               colour=counterfac)) +
-    stat_halfeye(adjust = .5, 
-                 width = .6, 
-                 .width = 0,
-                 alpha=.8,
-                 justification = -.3, 
-                 point_colour = NA,
-                 normalize = "groups") + 
-    geom_boxplot(width = .2, 
-                 outlier.shape = NA, 
-                 alpha=.8,
-                 colour="black") +
+               fill=counterfac, colour=counterfac)) +
+   stat_density_ridges(quantile_lines = TRUE, quantiles = 2,
+                       scale = 1,
+                       rel_min_height = 0.01,
+                       bandwidth = 0.2, alpha=.5) +
     scale_fill_manual(values=MetBrewer::met.brewer(name="Tiepolo", n=15, type="continuous"))+
     scale_colour_manual(values=MetBrewer::met.brewer(name="Tiepolo", n=15, type="continuous"))+
     geom_vline(xintercept = 0,
@@ -177,7 +174,7 @@ ggsave("Results/Figure4.pdf", p1,
                colour="grey50") +
     xlab(expression(paste("Population trend (",partialdiff,"y","/",partialdiff,"x)"))) + 
     ylab("Counterfactual") +
-    coord_cartesian(xlim = c(-0.05,0.05))+
+    coord_cartesian(xlim = c(-0.5,0.5))+
     theme_minimal()+
     theme(axis.title.x = element_text(size=12,
                                       margin = margin(t = 10, r = 0, b = 0, l = 0)), 
@@ -193,11 +190,6 @@ ggsave("Results/Figure4.pdf", p1,
           axis.ticks = element_line(color="black"),
           plot.title = element_text(hjust = 0.5),
           legend.position = "none"))
-
-# Save it
-
-ggsave("Results/counterfactualstwothreats.pdf", p2, 
-       width = 6, height = 12)
 
 ## Three threats scenarios -----------------------------------------------------
 
@@ -213,17 +205,10 @@ ggsave("Results/counterfactualstwothreats.pdf", p2,
                y=reorder(counterfac, pos),
                fill=counterfac, 
                colour=counterfac)) +
-    stat_halfeye(adjust = .5, 
-                 width = .6, 
-                 .width = 0,
-                 alpha=.8,
-                 justification = -.3, 
-                 point_colour = NA,
-                 normalize = "xy") + 
-    geom_boxplot(width = .2, 
-                 outlier.shape = NA, 
-                 alpha=.8,
-                 colour="black") +
+   stat_density_ridges(quantile_lines = TRUE, quantiles = 2,
+                       scale = 1,
+                       rel_min_height = 0.01,
+                       bandwidth = 0.01, alpha=.5) +
     scale_fill_manual(values=MetBrewer::met.brewer(name="Nattier", n=18, type="continuous"))+
     scale_colour_manual(values=MetBrewer::met.brewer(name="Nattier", n=18, type="continuous"))+
     # geom_boxplot(outlier.shape = NA)+
@@ -235,8 +220,8 @@ ggsave("Results/counterfactualstwothreats.pdf", p2,
                linetype = "dashed", 
                colour="grey50") +
     xlab(expression(paste("Population trend (",partialdiff,"y","/",partialdiff,"x)"))) + 
-    ylab("Counterfactual") +
-    coord_cartesian(xlim = c(-0.05,0.05))+
+    ylab("") +
+    coord_cartesian(xlim = c(-0.2,0.2))+
     theme_minimal()+
     theme(axis.title.x = element_text(size=12,
                                       margin = margin(t = 10, r = 0, b = 0, l = 0)), 
@@ -253,10 +238,15 @@ ggsave("Results/counterfactualstwothreats.pdf", p2,
           plot.title = element_text(hjust = 0.5),
           legend.position = "none"))
 
+# Combine it
+
+(figureS13 <- p2+ p3 +
+    plot_annotation(tag_levels = c('a')))
+
 # Save it
 
-ggsave("Results/counterfactualsthree.pdf", p3, 
-       width = 6, height = 14)
+ggsave("Results/FigureS13.pdf", figureS13,
+       width = 14, height = 12)
 
 # Estimate the difference in population trend
 
