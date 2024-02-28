@@ -2,7 +2,7 @@
 # - FILE NAME:   taxon_models.R         
 # - DATE:        11/02/2024
 # - DESCRIPTION: Code to run the individual models for each taxonomic group.
-# - AUTHORS: Pol Capdevila Lanzaco (pcapdevila@ub.edu), Duncan O'brien (duncan.a.obrien@gmail.com)
+# - AUTHORS: Pol Capdevila Lanzaco (pcapdevila@ub.edu), Duncan O'Brien (duncan.a.obrien@gmail.com)
 # --------------------------------------------------------------------------------------- #
 
 rm(list=ls(all=TRUE)) #remove everything
@@ -81,7 +81,8 @@ mod_amph <- brm(bf(form_amph #include realm/spp as slopes, x intercepts
                     family = gaussian(),
                     iter = 5000,
                     refresh=100,
-                    #backend = "cmdstanr",
+                    backend = "cmdstanr",
+                    silent = 0,
                     prior = priors,
                     chains = 4,
                     control=list(adapt_delta=0.975,max_treedepth = 12),
@@ -141,7 +142,8 @@ mod_bir <- brm(bf(form_bir #include realm/spp as slopes, x intercepts
                 family = gaussian(),
                 iter = 5000,
                 refresh=100,
-                #backend = "cmdstanr",
+                backend = "cmdstanr",
+                silent = 0,
                 prior = priors,
                 chains = 4,
                 control=list(adapt_delta=0.975,max_treedepth = 12),
@@ -202,7 +204,8 @@ mod_fish <- brm(bf(form_fish #include realm/spp as slopes, x intercepts
                family = gaussian(),
                iter = 5000,
                refresh=100,
-               #backend = "cmdstanr",
+               backend = "cmdstanr",
+               silent = 0,
                prior = priors,
                chains = 4,
                control=list(adapt_delta=0.975,max_treedepth = 12),
@@ -264,7 +267,8 @@ mod_mam <- brm(bf(form_mam #include realm/spp as slopes, x intercepts
                 family = gaussian(),
                 iter = 5000,
                 refresh=100,
-                #backend = "cmdstanr",
+                backend = "cmdstanr",
+                silent = 0,
                 prior = priors,
                 chains = 4,
                 control=list(adapt_delta=0.975,max_treedepth = 12),
@@ -325,7 +329,8 @@ mod_rep <- brm(bf(form_rep #include realm/spp as slopes, x intercepts
                 family = gaussian(),
                 iter = 5000,
                 refresh=100,
-                #backend = "cmdstanr",
+                backend = "cmdstanr",
+                silent = 0,
                 prior = priors,
                 chains = 4,
                 control=list(adapt_delta=0.975,max_treedepth = 12),
@@ -333,3 +338,4 @@ mod_rep <- brm(bf(form_rep #include realm/spp as slopes, x intercepts
 # Save the model 
 
 saveRDS(mod_rep,"Results/models/rep_mod.RDS")
+

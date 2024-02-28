@@ -2,7 +2,7 @@
 # - FILE NAME:   realm_models.R         
 # - DATE:        11/02/2024
 # - DESCRIPTION: Code to run the individual models for each realm.
-# - AUTHORS: Pol Capdevila Lanzaco (pcapdevila@ub.edu), Duncan O'brien (duncan.a.obrien@gmail.com)
+# - AUTHORS: Pol Capdevila Lanzaco (pcapdevila@ub.edu), Duncan O'Brien (duncan.a.obrien@gmail.com)
 # --------------------------------------------------------------------------------------- #
 
 rm(list=ls(all=TRUE)) #remove everything
@@ -80,7 +80,8 @@ mod_mar <- brm(bf(form_mar #include realm/spp as slopes, x intercepts
                 family = gaussian(),
                 iter = 5000,
                 refresh=100,
-                #backend = "cmdstanr",
+                backend = "cmdstanr",
+                silent = 0,
                 prior = priors,
                 chains = 4,
                 control=list(adapt_delta=0.975,max_treedepth = 12),
@@ -140,7 +141,8 @@ mod_fre <- brm(bf(form_fre #include realm/spp as slopes, x intercepts
                family = gaussian(),
                iter = 5000,
                refresh=100,
-               #backend = "cmdstanr",
+               backend = "cmdstanr",
+               silent = 0,
                prior = priors,
                chains = 4,
                control=list(adapt_delta=0.975,max_treedepth = 12),
@@ -201,7 +203,8 @@ mod_ter <- brm(bf(form_ter #include realm/spp as slopes, x intercepts
                family = gaussian(),
                iter = 5000,
                refresh=100,
-               #backend = "cmdstanr",
+               backend = "cmdstanr",
+               silent = 0,
                prior = priors,
                chains = 4,
                control=list(adapt_delta=0.975,max_treedepth = 12),
