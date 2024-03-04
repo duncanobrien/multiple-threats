@@ -2,7 +2,7 @@
 # - FILE NAME:   counterfactual.R         
 # - DATE:        03/01/2024
 # - DESCRIPTION: Code to test scenarios where the threats have been removed.
-# - AUTHORS:     Pol Capdevila Lanzaco (pcapdevila@ub.edu), Duncan O'brien ()
+# - AUTHORS:     Pol Capdevila Lanzaco (pcapdevila@ub.edu), Duncan O'Brien (duncan.a.obrien@gmail.com)
 # --------------------------------------------------------------------------------------- #
 
 rm(list=ls(all=TRUE)) #remove everything
@@ -15,10 +15,11 @@ library(ggridges)
 library(tidybayes)
 library(parallel)
 library(doSNOW)
+library(patchwork)
 
 # Load the model 
 
-m1 <- read_rds("Results/models/mod_global.RDS")
+m1 <- read_rds("Results/models/mod_global_rerun.RDS")
 
 # Load the functions
 
@@ -40,10 +41,10 @@ threat_cols <-  colnames(m1$data)[grepl(paste(c("pollution","habitatl",
 pop_perd <- brms::posterior_epred(m1,
                                   newdata = m1$data %>% 
                                     filter_at(threat_cols, any_vars(. != "0")),
-                                  re.form = NA,
+                                  re.form = NULL,
                                   incl_autocor = FALSE,
                                   sort = TRUE, 
-                                  ndraws = 1000) %>% 
+                                  ndraws = 5000) %>% 
   as.data.frame() %>%
   mutate(.draw = 1:NROW(.)) %>%
   #extract posterior draws for the data used to create the model
@@ -61,10 +62,10 @@ pop_perd <- brms::posterior_epred(m1,
 
 counter_fac_data <- threat_counterfac_draws(m1,
                                             threat_comns = threat_cols,
-                                            re.form = NA,
-                                            ndraws = 1000,
+                                            re.form = NULL,
+                                            ndraws = 5000,
                                             center_dydx = "mean",
-                                            n.cores = 6) %>%
+                                            n.cores = 4) %>%
   # Join with the none counterfactual scenario that we just created
   rbind(pop_perd) %>%
   # Made "none" as the first level of the counterfactual 
