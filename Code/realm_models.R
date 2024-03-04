@@ -24,7 +24,7 @@ load("Data/data_models.RData")
 
 # Set the priors 
 
-priors <- c(prior(normal(0, 1), class = b),
+priors <- c(prior(normal(-0.005900686, 0.26), class = b),
             prior(exponential(1), class = sd),
             prior(normal(0,0.25), class = ar))
 
