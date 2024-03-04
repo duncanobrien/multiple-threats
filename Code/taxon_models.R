@@ -22,11 +22,28 @@ norm_range <- function(x){
 
 load("Data/data_models.RData")
 
+# Load global model
+
+mod <- readRDS("Results/models/mod_global.RDS")
+
+# Extract the posterior distributions
+
+posterior_samples1 <- posterior_samples(mod) 
+
+# Filter for coefficients containing "b_"
+
+filtered_posteriors <- posterior_samples1[,grep("b_", names(posterior_samples1))]
+
 # Set the priors 
 
-priors <- c(prior(normal(0, 1), class = b),
+priors <- c(prior(normal(-0.005900686, 0.26), 
+                  class = b),
             prior(exponential(1), class = sd),
             prior(normal(0,0.25), class = ar))
+
+# Remove the model and samples to clear memory
+
+rm(filtered_posteriors, posterior_samples1, mod)
 
 # Taxon specific models ----------------------------------------------------------
 ## Amphibians ----
