@@ -79,9 +79,10 @@ mod_glob <- brm(bf(form #include realm/spp as slopes, x intercepts
                prior = priors,
                chains = 4,
                control=list(adapt_delta=0.975,max_treedepth = 12),
+               
                cores = 4)
 
 # Save the model 
 
-saveRDS(mod_glob,"Results/models/mod_global.RDS")
+saveRDS(mod_glob,"Results/models/mod_global_rerun.RDS")
 

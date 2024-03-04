@@ -74,21 +74,21 @@ mod_dat_full <- pops %>%
          threats = factor(ifelse(is.na(threats),"none",threats))) %>% #convert stressors to binary
   mutate(threats = fct_relevel(threats, "none")) %>%
   left_join(dplyr::select(dd_final,c(ID,pollution,habitatl,climatechange,
-                              invasive, exploitation,disease)),
+                                     invasive, exploitation,disease)),
             multiple = "first",by = "ID") %>% 
   mutate(none = ifelse(all(is.na(c(pollution,habitatl,climatechange,
                                    invasive, exploitation,disease))),
                        "none",NA)) %>%
   mutate(across(pollution:none,~ifelse(is.na(.x),"0","1"))) %>% #convert absence of stress to binary
+  drop_na(y) %>% 
   group_by(ID) %>%
-  slice(1:max(which(!is.na(y))))  %>% #remove lagging years containing all NAs (to prevent unbounded interpolation)
   mutate(scaled_year = c(scale(year,center = TRUE,scale = FALSE)), #center time to 0 for each timeseries
          time = seq_along(year),
          scaled_time = c(scale(time,center = TRUE,scale = FALSE)),
-         y_centered = y-(na.omit(y)[1]-0) #recenter y so that first value of timeseries is 0 (to allow all intercepts to be removed)
+         #y_centered = y-(na.omit(y)[1]-0) #recenter y so that first value of timeseries is 0 (to allow all intercepts to be removed)
+         y_centered = c(scale(y,center = TRUE,scale = FALSE)) #recenter y so that first value of timeseries is 0 (to allow all intercepts to be removed)
   ) %>% 
   ungroup(ID) %>%
-  drop_na(y) %>% 
   mutate(threats = as.character(threats)) %>%
   mutate(Taxon= ifelse(Class=="Holocephali"|Class=="Elasmobranchii" | 
                          Class=="Myxini"|Class=="Cephalaspidomorphi"|
