@@ -24,26 +24,27 @@ load("Data/data_models.RData")
 
 # Load global model
 
-mod <- readRDS("Results/models/mod_global.RDS")
+glob_mod <- readRDS("Results/models/mod_global_rerun.RDS")
 
-# Extract the posterior distributions
+# Extract the posterior distributions for coefficients containing "b_"
 
-posterior_samples1 <- posterior_samples(mod) 
+glob_posterior_samples <- as_draws_matrix(glob_mod, variable = "^b_", regex = TRUE)
 
-# Filter for coefficients containing "b_"
+# Find mean and sd of estimated coefficients
 
-filtered_posteriors <- posterior_samples1[,grep("b_", names(posterior_samples1))]
+mean_coef <- mean(glob_posterior_samples)
+sd_coef <- sd(glob_posterior_samples)
 
 # Set the priors 
 
-priors <- c(prior(normal(-0.005900686, 0.26), 
-                  class = b),
+priors <- c(prior_string(paste0("normal(",mean_coef,",",sd_coef,")"), 
+                         class = "b"),
             prior(exponential(1), class = sd),
             prior(normal(0,0.25), class = ar))
 
 # Remove the model and samples to clear memory
 
-rm(filtered_posteriors, posterior_samples1, mod)
+rm(glob_mod, glob_posterior_samples, mean_coef, sd_coef)
 
 # Taxon specific models ----------------------------------------------------------
 ## Amphibians ----
@@ -84,7 +85,7 @@ rhs_amph <- paste0(paste("scaled_year*",
                                 colnames(mod_dat_amph))],
                         sep ="",collapse = " + "),
                   " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
-               (0 + scaled_year|gr(Site, cov = spa_mat)) + -1")
+               (0 + scaled_year|gr(Site, cov = spa_mat)) + 1")
 # Combine y_centered and rhs into a model formula
 
 form_amph <- as.formula(paste("y_centered", "~", rhs_amph)) 
@@ -102,7 +103,7 @@ mod_amph <- brm(bf(form_amph #include realm/spp as slopes, x intercepts
                     silent = 0,
                     prior = priors,
                     chains = 4,
-                    control=list(adapt_delta=0.975,max_treedepth = 12),
+                    control=list(adapt_delta=0.995,max_treedepth = 12),
                     cores = 4)
 # Save the model 
 
@@ -145,7 +146,7 @@ rhs_bir <- paste0(paste("scaled_year*",
                                  colnames(mod_dat_bir))],
                          sep ="",collapse = " + "),
                    " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
-               (0 + scaled_year|gr(Site, cov = spa_mat)) + -1")
+               (0 + scaled_year|gr(Site, cov = spa_mat)) + 1")
 # Combine y_centered and rhs into a model formula
 
 form_bir <- as.formula(paste("y_centered", "~", rhs_bir)) 
@@ -206,7 +207,7 @@ rhs_fish <- paste0(paste("scaled_year*",
                                 colnames(mod_dat_fish))],
                         sep ="",collapse = " + "),
                   " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
-               (0 + scaled_year|gr(Site, cov = spa_mat)) + -1")
+               (0 + scaled_year|gr(Site, cov = spa_mat)) + 1")
 
 # Combine y_centered and rhs into a model formula
 
@@ -225,7 +226,7 @@ mod_fish <- brm(bf(form_fish #include realm/spp as slopes, x intercepts
                silent = 0,
                prior = priors,
                chains = 4,
-               control=list(adapt_delta=0.975,max_treedepth = 12),
+               control=list(adapt_delta=0.995,max_treedepth = 12),
                cores = 4)
 # Save the model 
 
@@ -269,7 +270,7 @@ rhs_mam <- paste0(paste("scaled_year*",
                                  colnames(mod_dat_mam))],
                          sep ="",collapse = " + "),
                    " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
-               (0 + scaled_year|gr(Site, cov = spa_mat)) + -1")
+               (0 + scaled_year|gr(Site, cov = spa_mat)) + 1")
 
 # Combine y_centered and rhs into a model formula
 
@@ -331,7 +332,7 @@ rhs_rep <- paste0(paste("scaled_year*",
                                  colnames(mod_dat_rep))],
                          sep ="",collapse = " + "),
                    " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
-               (0 + scaled_year|gr(Site, cov = spa_mat)) + -1")
+               (0 + scaled_year|gr(Site, cov = spa_mat)) + 1")
 
 # Combine y_centered and rhs into a model formula
 
@@ -350,7 +351,7 @@ mod_rep <- brm(bf(form_rep #include realm/spp as slopes, x intercepts
                 silent = 0,
                 prior = priors,
                 chains = 4,
-                control=list(adapt_delta=0.975,max_treedepth = 12),
+                control=list(adapt_delta=0.995,max_treedepth = 12),
                 cores = 4)
 # Save the model 
 

@@ -22,11 +22,29 @@ norm_range <- function(x){
 
 load("Data/data_models.RData")
 
+# Load global model
+
+glob_mod <- readRDS("Results/models/mod_global_rerun.RDS")
+
+# Extract the posterior distributions for coefficients containing "b_"
+
+glob_posterior_samples <- as_draws_matrix(glob_mod, variable = "^b_", regex = TRUE)
+
+# Find mean and sd of estimated coefficients
+
+mean_coef <- mean(glob_posterior_samples)
+sd_coef <- sd(glob_posterior_samples)
+
 # Set the priors 
 
-priors <- c(prior(normal(-0.005900686, 0.26), class = b),
+priors <- c(prior_string(paste0("normal(",mean_coef,",",sd_coef,")"), 
+                         class = "b"),
             prior(exponential(1), class = sd),
             prior(normal(0,0.25), class = ar))
+
+# Remove the model and samples to clear memory
+
+rm(glob_mod, glob_posterior_samples, mean_coef, sd_coef)
 
 # Realm specific models --------------------------------------------------------
 ## Marine ---- 
@@ -66,7 +84,7 @@ rhs_mar <- paste0(paste("scaled_year*",
                                  colnames(mod_dat_mar))],
                          sep ="",collapse = " + "),
                    " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
-               (0 + scaled_year|gr(Site, cov = spa_mat)) + -1")
+               (0 + scaled_year|gr(Site, cov = spa_mat)) + 1")
 # Combine y_centered and rhs into a model formula
 
 form_mar <- as.formula(paste("y_centered", "~", rhs_mar)) 
@@ -127,7 +145,7 @@ rhs_fre <- paste0(paste("scaled_year*",
                                 colnames(mod_dat_fre))],
                         sep ="",collapse = " + "),
                   " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
-               (0 + scaled_year|gr(Site, cov = spa_mat)) + -1")
+               (0 + scaled_year|gr(Site, cov = spa_mat)) + 1")
 # Combine y_centered and rhs into a model formula
 
 form_fre <- as.formula(paste("y_centered", "~", rhs_fre)) 
@@ -188,7 +206,7 @@ rhs_ter <- paste0(paste("scaled_year*",
                                 colnames(mod_dat_ter))],
                         sep ="",collapse = " + "),
                   " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
-               (0 + scaled_year|gr(Site, cov = spa_mat)) + -1")
+               (0 + scaled_year|gr(Site, cov = spa_mat)) + 1")
 
 # Combine y_centered and rhs into a model formula
 
