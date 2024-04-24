@@ -24,6 +24,25 @@ m1 <- read_rds("Results/models/mod_global_rerun.RDS")
 # Load the functions
 
 source("Code/threat_counterfac_draws.R")
+source("Code/threat_counterfac_pred.R")
+
+# Set default ggplot theme
+
+theme_set(theme_minimal()+
+            theme(axis.title.x = element_text(size=12,
+                                              margin = margin(t = 10, r = 0, b = 0, l = 0)), 
+                  axis.title.y = element_text(size=12,
+                                              margin = margin(t = 0, r = 10, b = 0, l = 0)),
+                  axis.line.x = element_line(color="black", linewidth = 0.5),
+                  axis.line.y = element_line(color="black", linewidth = 0.5),
+                  panel.grid.major = element_blank(), 
+                  panel.grid.minor = element_blank(),
+                  axis.text.x = element_text(color="black", size = 12),
+                  axis.text.y = element_text(color="black", size = 12),
+                  strip.text.x = element_text(size = 12),
+                  axis.ticks = element_line(color="black"),
+                  plot.title = element_text(hjust = 0.5),
+                  plot.margin = unit(c(0, 0, 0, 0), "cm")))
 
 # Conterfactual tests ----------------------------------------------------------
 
@@ -44,7 +63,7 @@ pop_perd <- brms::posterior_epred(m1,
                                   re.form = NULL,
                                   incl_autocor = FALSE,
                                   sort = TRUE, 
-                                  ndraws = 5000) %>% 
+                                  ndraws = 250) %>% 
   as.data.frame() %>%
   mutate(.draw = 1:NROW(.)) %>%
   #extract posterior draws for the data used to create the model
@@ -63,9 +82,9 @@ pop_perd <- brms::posterior_epred(m1,
 counter_fac_data <- threat_counterfac_draws(m1,
                                             threat_comns = threat_cols,
                                             re.form = NULL,
-                                            ndraws = 5000,
+                                            ndraws = 250,
                                             center_dydx = "mean",
-                                            n.cores = 4) %>%
+                                            n.cores = 4, trend=T) %>%
   # Join with the none counterfactual scenario that we just created
   rbind(pop_perd) %>%
   # Made "none" as the first level of the counterfactual 
@@ -85,9 +104,9 @@ scenarios_mean <- counter_fac_data %>%
 threat_palette<-c(MetBrewer::met.brewer(name="Hokusai1", n=6, type="continuous"),
                   "grey60")
 
-## One threat scenarios --------------------------------------------------------
+## Panel a: one threat scenarios --------------------------------------------------------
 
-(g4 <- counter_fac_data %>% 
+(g4a <- counter_fac_data %>% 
   # add a variable counting the number of threats
   mutate(number=str_count(counterfac, '\\.')+1) %>%
   group_by(counterfac) %>% 
@@ -102,21 +121,21 @@ threat_palette<-c(MetBrewer::met.brewer(name="Hokusai1", n=6, type="continuous")
              fill=counterfac, 
              colour=counterfac)) +
    geom_violin(alpha=0.5, colour="white")+
-   geom_boxplot(aes(colour=counterfac), 
+   geom_boxplot(aes(colour=counterfac),
                 fill="white", width = .2,
                 outlier.shape = NA)+
-  # stat_halfeye(adjust = .5, 
-  #              width = .6, 
+  # stat_halfeye(adjust = .5,
+  #              width = .6,
   #              .width = 0,
   #              alpha=.8,
-  #              justification = -.3, 
+  #              justification = -.3,
   #              point_colour = NA,
-  #              normalize = "groups") + 
-  # geom_boxplot(width = .2, 
-  #              outlier.shape = NA, 
+  #              normalize = "groups") +
+  # geom_boxplot(width = .2,
+  #              outlier.shape = NA,
   #              alpha=.8,
   #              colour="black") +
-  scale_fill_manual(values=c(threat_palette))+
+     scale_fill_manual(values=c(threat_palette))+
   scale_colour_manual(values=threat_palette)+
   geom_vline(xintercept = 0,
              linetype = "solid", 
@@ -125,7 +144,7 @@ threat_palette<-c(MetBrewer::met.brewer(name="Hokusai1", n=6, type="continuous")
                linetype = "dashed", 
                colour="grey50") +
     xlab(expression(paste("Population trend (",partialdiff,"y","/",partialdiff,"x)"))) + 
-    ylab("Counterfactual") +
+    ylab("Counterfactual scenarios") +
    coord_flip(xlim = c(-0.2,0.2))+
     theme_minimal()+
     theme(axis.title.x = element_text(size=12,
@@ -147,6 +166,96 @@ threat_palette<-c(MetBrewer::met.brewer(name="Hokusai1", n=6, type="continuous")
 
 ggsave("Results/Figure4.pdf", g4, 
        width = 12, height = 6)
+
+# Panel b: projection ----------------------------------------------------------
+
+# Predict under no scenario
+
+pop_perd <- brms::posterior_epred(m1,
+                                  newdata = m1$data %>% 
+                                    filter_at(threat_cols, any_vars(. != "0")),
+                                  re.form = NULL,
+                                  incl_autocor = FALSE,
+                                  sort = TRUE, 
+                                  ndraws = 250) %>% 
+  as.data.frame() %>%
+  mutate(.draw = 1:NROW(.)) %>%
+  #extract posterior draws for the data used to create the model
+  pivot_longer(-.draw,names_to = "index",values_to = ".value") %>%
+  cbind(m1$data %>%
+          filter_at(threat_cols, any_vars(. != "0")) %>% 
+          dplyr::select(series, time), row.names = NULL) %>% 
+  mutate(counterfac="none") 
+
+# Use our function to predict populations under different scenarios
+
+counter_fac_proj <- threat_counterfac_pred(m1,
+                                            threat_comns = threat_cols,
+                                            re.form = NULL,
+                                            ndraws = 250,
+                                            n.cores = 4) %>%
+  # Join with the none counterfactual scenario that we just created
+  rbind(pop_perd) %>%
+  # Made "none" as the first level of the counterfactual 
+  mutate(counterfac = fct_relevel(counterfac, "none"),
+         number=str_count(counterfac, '\\.')+1,
+         counterfac=gsub("none", "None", counterfac),
+         counterfac = gsub("habitatl", "habitat loss", counterfac),
+         counterfac = gsub("climatechange", "climate change", counterfac)) #Create a new variable for number of threats
+
+# Mean trajectory
+
+counter_fac_mean <- counter_fac_proj %>% 
+  group_by(counterfac, time) %>% 
+  summarise(m=mean(.value))
+
+counter_interval <-counter_fac_proj %>% 
+   group_by(counterfac, time) %>% 
+   ggdist::median_qi(.width = c(.95), 
+                     .exclude = c(".draw", "index", "series", "number")) #extract distribution information
+
+
+# Plot it 
+
+data <- counter_fac_mean %>%
+  mutate(number=str_count(counterfac, '\\.')+1) %>% 
+  filter(number==1) 
+
+data %>% 
+  ggplot(aes(x=time, y=m, group=counterfac)) +
+  geom_line(linewidth=1, 
+            aes(colour=counterfac))+
+  scale_colour_manual(name = NULL, values=threat_palette)+
+  geom_hline(yintercept=0, linetype="dashed")+
+  #xlim(0,50)+
+  #ylim(-0.5,0.5)+
+  labs(x="Years", y="Relative abundance")+
+  theme(legend.position = "bottom")
+
+data_int <- counter_interval %>%
+  mutate(number=str_count(counterfac, '\\.')+1) %>% 
+  filter(number==1) 
+
+data_int %>%  
+  mutate(counterfac=gsub("none", "None", counterfac),
+         counterfac = gsub("habitatl", "habitat loss", counterfac),
+         counterfac = gsub("climatechange", "climate change", counterfac)) %>% 
+  filter(counterfac!="None") %>% 
+  ggplot(aes(x=time, y=.value, group=counterfac)) +
+  geom_ribbon(aes(ymin = .lower, ymax = .upper, 
+                  fill=counterfac), 
+              alpha=0.2, colour=NA)+
+  geom_line(linewidth=1, 
+            aes(colour=counterfac))+
+  scale_colour_manual(name = NULL, values=threat_palette)+
+  scale_fill_manual(name = NULL, values=threat_palette)+
+  geom_hline(yintercept=0, linetype="dashed")+
+  #xlim(0,50)+
+  #ylim(-0.5,0.5)+
+  labs(x="Years", y="Relative abundance")+
+  facet_wrap(~counterfac)+
+  theme(legend.position = "none")
+
 
 ## Two threats scenarios -------------------------------------------------------
 
