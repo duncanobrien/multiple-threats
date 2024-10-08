@@ -46,29 +46,6 @@ theme_set(theme_minimal()+
                   plot.title = element_text(hjust = 0.5),
                   legend.text = element_text(size = 12)))
 
-# Model convergence ------------------------------------------------------------
-
-# System rhat
-
-rhats <- rhat(ms1)
-
-mcmc_rhat(rhats)
-
-# Taxa rhat
-
-rhats <- rhat(mt1)
-mcmc_rhat(rhats, size = 2)
-
-# Neff for system
-
-ratios <- neff_ratio(ms1)
-mcmc_neff(ratios)
-
-# Neff for Taxa
-
-ratios <- neff_ratio(mt1)
-mcmc_neff(ratios)
-
 # Normality of residuals -------------------------------------------------------
 # Global 
 
@@ -81,153 +58,9 @@ mcmc_neff(ratios)
    scale_x_continuous(labels = scales::number_format(accuracy = 0.01))+
    labs(x="Standradised residuals", y="Density"))
 
-# System 
-
-(p2a <- ms1$data %>% 
-  mutate(std_resid = residuals(ms1)[ , "Estimate"]) %>% 
-  ggplot(aes(std_resid)) + 
-  geom_histogram(aes(y=..density..),
-                 colour="#9B9B9B", fill="#BFBFBF")+ 
-   scale_y_continuous(expand = c(0,0))+
-   scale_x_continuous(labels = scales::number_format(accuracy = 0.01))+
-   labs(x="Standradised residuals", y="Density"))
-  
-# Taxon
-
-(p3a <- mt1$data %>% 
-    mutate(std_resid = residuals(mt1)[ , "Estimate"]) %>% 
-    ggplot(aes(std_resid)) + 
-    geom_histogram(aes(y=..density..),
-                   colour="#9B9B9B", fill="#BFBFBF")+ 
-    scale_y_continuous(expand = c(0,0))+
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01))+
-    labs(x="Standradised residuals", y="Density"))
-
-# Interactions freshwater
-
-(p4a <- mmu_fr$data %>% 
-    mutate(std_resid = residuals(mmu_fr)[ , "Estimate"]) %>% 
-    ggplot(aes(std_resid)) + 
-    geom_histogram(aes(y=..density..),
-                   colour="#9B9B9B", fill="#BFBFBF")+ 
-    scale_y_continuous(expand = c(0,0))+
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01))+
-    labs(x="Standradised residuals", y="Density"))
-
-# Interactions marine
-
-(p5a <- mmu_mar$data %>% 
-    mutate(std_resid = residuals(mmu_mar)[ , "Estimate"]) %>% 
-    ggplot(aes(std_resid)) + 
-    geom_histogram(aes(y=..density..),
-                   colour="#9B9B9B", fill="#BFBFBF")+ 
-    scale_y_continuous(expand = c(0,0))+
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01))+
-    labs(x="Standradised residuals", y="Density"))
-
-# Interactions terrestrial
-
-(p6a <- mmu_ter$data %>% 
-    mutate(std_resid = residuals(mmu_ter)[ , "Estimate"]) %>% 
-    ggplot(aes(std_resid)) + 
-    geom_histogram(aes(y=..density..),
-                   colour="#9B9B9B", fill="#BFBFBF")+ 
-    scale_y_continuous(expand = c(0,0))+
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01))+
-    labs(x="Standradised residuals", y="Density"))
-
-# Interactions amphibians
-
-(p7a <- mmu_am$data %>% 
-    mutate(std_resid = residuals(mmu_am)[ , "Estimate"]) %>% 
-    ggplot(aes(std_resid)) + 
-    geom_histogram(aes(y=..density..),
-                   colour="#9B9B9B", fill="#BFBFBF")+ 
-    scale_y_continuous(expand = c(0,0))+
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01))+
-    labs(x="Standradised residuals", y="Density"))
-
-# Interactions birds
-
-(p8a <- mmu_bi$data %>% 
-    mutate(std_resid = residuals(mmu_bi)[ , "Estimate"]) %>% 
-    ggplot(aes(std_resid)) + 
-    geom_histogram(aes(y=..density..),
-                   colour="#9B9B9B", fill="#BFBFBF")+ 
-    scale_y_continuous(expand = c(0,0))+
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01))+
-    labs(x="Standradised residuals", y="Density"))
-
-# Interactions fishes
-
-(p9a <- mmu_f$data %>% 
-    mutate(std_resid = residuals(mmu_f)[ , "Estimate"]) %>% 
-    ggplot(aes(std_resid)) + 
-    geom_histogram(aes(y=..density..),
-                   colour="#9B9B9B", fill="#BFBFBF")+ 
-    scale_y_continuous(expand = c(0,0))+
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01))+
-    labs(x="Standradised residuals", y="Density"))
-
-# Interactions mammals
-
-(p10a <- mmu_ma$data %>% 
-    mutate(std_resid = residuals(mmu_ma)[ , "Estimate"]) %>% 
-    ggplot(aes(std_resid)) + 
-    geom_histogram(aes(y=..density..),
-                   colour="#9B9B9B", fill="#BFBFBF")+ 
-    scale_y_continuous(expand = c(0,0))+
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01))+
-    labs(x="Standradised residuals", y="Density"))
-
-# Interactions reptiles
-
-(p11a <- mmu_rep$data %>% 
-    mutate(std_resid = residuals(mmu_rep)[ , "Estimate"]) %>% 
-    ggplot(aes(std_resid)) + 
-    geom_histogram(aes(y=..density..),
-                   colour="#9B9B9B", fill="#BFBFBF")+ 
-    scale_y_continuous(expand = c(0,0))+
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01))+
-    labs(x="Standradised residuals", y="Density"))
-
-# Combine the individual plots 
-
-combined_plot <- (p1a + p2a + p3a + p4a +
-                    p5a + p6a + p7a + p8a +
-                    p9a + p10a + p11a & 
-  labs(x = NULL, y = NULL)) + 
-  plot_annotation(tag_levels = "a") +
-  plot_layout(nrow = 3) &
-  theme(plot.tag = element_text(face = 'bold'))
-
-# Create a separate plot for the y-axis label 
-
-ylabel <- ggplot(data.frame(l = p1a$labels$y, x = 1, y = 1)) +
-  geom_text(aes(x, y, label = l), size=5, angle = 90) + 
-  theme_void() +
-  coord_cartesian(clip = "off")
-
-# Create a separate plot for the x-axis label 
-
-xlabel <- ggplot(data.frame(l = p1a$labels$x, x = 1, y = 1)) +
-  geom_text(aes(x, y, label = l), size=5) + 
-  theme_void() +
-  coord_cartesian(clip = "off")
-
-# Combine the original figure with the y-axis label 
-
-(top <- cowplot::plot_grid(ylabel, combined_plot,
-                                rel_widths = c(1, 25)))
-
-# Combine with the x-axis label 
-
-(figureS3 <- cowplot::plot_grid(top, xlabel, nrow = 2,
-                                rel_heights = c(25, 1)))
-
 # Save the final plot 
 
-ggsave("Figure S3.pdf",path = ResultPath, figureS3, width = 12, height = 8)
+ggsave("Result/Figure S3.pdf",path = ResultPath, figureS3, width = 12, height = 8)
 
 # Homocedasticity --------------------------------------------------------------
 
@@ -410,98 +243,9 @@ color_scheme_set("darkgray")
 
 # General 
 
-(p1c <- pp_check(m1, ndraws = 100)+ 
+(p1 <- pp_check(m1, ndraws = 100)+ 
     scale_x_continuous(labels = scales::number_format(accuracy = 0.01),
                        limits =c(-1.1, 1.1)))
-
-# System 
-
-(p2c <- pp_check(ms1, ndraws =  100) + 
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01),
-                       limits =c(-1.1, 1.1)))
-
-(p2d <- pp_check(ms1, type = "stat_grouped", stat = "mean", group = "System")+
-  scale_x_continuous(labels = scales::number_format(accuracy = 0.01)))
-
-
-# Taxa
-
-(p3c <- pp_check(mt1, ndraws = 100)+ 
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01),
-                       limits =c(-1.1, 1.1)))
-(p3d <- pp_check(mt1, type = "stat_grouped", 
-                 stat = "mean", group = "Taxon")+
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01)))
-
-# Interactive models freshwater
-
-(p4c <- pp_check(mmu_fr, ndraws =  100) + 
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01),
-                       limits =c(-1.1, 1.1)))
-
-# Interactive models marine
-
-(p5c <- pp_check(mmu_mar, ndraws =  100) + 
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01),
-                       limits =c(-1.1, 1.1)))
-
-# Interactive models terrestrial
-
-(p6c <- pp_check(mmu_ter, ndraws =  100) + 
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01),
-                       limits =c(-1.1, 1.1)))
-
-# Interactive models amphibians
-
-(p7c <- pp_check(mmu_am, ndraws =  100) + 
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01),
-                       limits =c(-1.1, 1.1)))
-
-# Interactive models birds
-
-(p8c <- pp_check(mmu_bi, ndraws =  100) + 
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01),
-                       limits =c(-1.1, 1.1)))
-
-# Interactive models fishes
-
-(p9c <- pp_check(mmu_f, ndraws =  100) + 
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01),
-                       limits =c(-1.1, 1.1)))
-
-# Interactive models mammals
-
-(p10c <- pp_check(mmu_ma, ndraws =  100) + 
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01),
-                       limits =c(-1.1, 1.1)))
-
-# Interactive models reptiles
-
-(p11c <- pp_check(mmu_rep, ndraws =  100) + 
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01),
-                       limits =c(-1.1, 1.1)))
-
-# Combine  plots into a single figure
-
-(combined_figure <-  (p1c+p2c+p3c+p4c+
-                p5c+p6c+p7c+p8c+
-                p9c+p10c+p11c & 
-                labs(x = NULL, y = NULL)) +
-  plot_annotation(tag_levels = "a")+
-  plot_layout(nrow = 3, guides = "collect") &
-    theme(plot.tag = element_text(face = 'bold')))
-
-# Create a separate plot for the y-axis label 
-
-ylabel <- ggplot(data.frame(x = 1, y = 1)) +
-  geom_text(aes(x, y, label = "Density"), size=5, angle = 90) + 
-  theme_void() +
-  coord_cartesian(clip = "off")
-
-# Combine the original figure with the y-axis label and x-axis label
-
-(figureS5 <- cowplot::plot_grid(ylabel, combined_figure,
-                                rel_widths = c(1, 25)))
 
 # Save the combined figure 
 
@@ -512,14 +256,3 @@ ggsave("Figure S5.pdf", figureS5,
 # Multicollinearity ------------------------------------------------------------
 
 check_collinearity(m1)
-check_collinearity(ms1)
-check_collinearity(mt1)
-check_collinearity(mmu_fr)
-check_collinearity(mmu_mar)
-check_collinearity(mmu_ter)
-check_collinearity(mmu_am)
-check_collinearity(mmu_bi)
-check_collinearity(mmu_f)
-check_collinearity(mmu_ma)
-check_collinearity(mmu_rep)
-
