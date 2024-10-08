@@ -92,7 +92,8 @@ threat_counterfac_draws <- function(model, threat_comns, center_dydx = c("mean",
                                                      "mean" = mean(diff(.value)/diff(time)),
                                                      "median" = median(diff(.value)/diff(time))),
                                       .by = c(series,.draw)) %>% 
-                              mutate(counterfac=paste("No", y))
+                              mutate(counterfac=paste("No", y)) %>% 
+                              reframe(mn = mean(.value),.by = c(series,counterfac))
     
     #   t()
     # tmp <- lapply(split(tmp,nw_data$series), matrix, ncol=NCOL(tmp))  #Split into different time series
