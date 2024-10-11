@@ -16,6 +16,7 @@ library(tidybayes)
 library(parallel)
 library(doSNOW)
 library(patchwork)
+library(rstan)
 
 # Load the model 
 
@@ -23,8 +24,8 @@ m1 <- read_rds("Results/models/mod_global_rerun.RDS")
 
 # Load the functions
 
-source("Code/threat_counterfac_draws.R")
-source("Code/threat_counterfac_pred.R")
+source("Code/utils/threat_counterfac_draws.R")
+source("Code/utils/threat_counterfac_pred.R")
 
 # Set default ggplot theme
 
@@ -63,7 +64,7 @@ pop_perd <- brms::posterior_epred(m1,
                                   re.form = NULL,
                                   incl_autocor = FALSE,
                                   sort = TRUE, 
-                                  ndraws = 250) %>% 
+                                  ndraws = 1000) %>% 
   as.data.frame() %>%
   mutate(.draw = 1:NROW(.)) %>%
   #extract posterior draws for the data used to create the model
@@ -86,7 +87,7 @@ counter_all <- threat_counterfac_draws(m1,
                                                               "exploitation","disease"),
                                                             collapse = "."),
                                        re.form = NULL,
-                                       ndraws = 500,
+                                       ndraws = 1000,
                                        center_dydx = "mean",
                                        n.cores = 4, trend=T) %>% 
   mutate(counterfac="All")
@@ -100,7 +101,7 @@ counter_all <- threat_counterfac_draws(m1,
 counter_fac_data <- threat_counterfac_draws(m1,
                                             threat_comns = threat_cols,
                                             re.form = NULL,
-                                            ndraws = 500,
+                                            ndraws = 1000,
                                             center_dydx = "mean",
                                             n.cores = 4, trend=T) %>%
   # Join with the none counterfactual scenario that we just created
@@ -179,7 +180,7 @@ palette <- data.frame(counterfac = c("No pollution","No habitat loss",
     geom_hline(yintercept = subset(scenarios_mean,counterfac == "none")$m,
                linetype = "dashed", 
                colour="grey50") +
-    ylab(expression(paste("Population trend (",partialdiff,"y","/",partialdiff,"x)"))) + 
+    ylab(expression(paste("Mean population trend (",Delta,"y","/",Delta,"x)"))) + 
     xlab("Counterfactual scenarios") +
    ylim(c(-0.2,0.2)))
 
@@ -215,7 +216,7 @@ ggsave("Results/Figure 4.pdf", g4,
     geom_vline(xintercept = subset(scenarios_mean,counterfac == "none")$m,
                linetype = "dashed", 
                colour="grey50",linewidth=1) +
-    xlab(expression(paste("Population trend (",partialdiff,"y","/",partialdiff,"x)"))) + 
+    xlab(expression(paste("Population trend (",Delta,"y","/",Delta,"x)"))) + 
     ylab("Counterfactual") +
     coord_cartesian(xlim = c(-0.2,0.2))+
     theme_minimal()+
@@ -264,7 +265,7 @@ ggsave("Results/Figure 4.pdf", g4,
    geom_vline(xintercept = subset(scenarios_mean,counterfac == "none")$m,
               linetype = "dashed", 
               colour="grey50",linewidth=1) +
-   xlab(expression(paste("Population trend (",partialdiff,"y","/",partialdiff,"x)"))) + 
+   xlab(expression(paste("Population trend (",Delta,"y","/",Delta,"x)"))) + 
     ylab("") +
     coord_cartesian(xlim = c(-0.2,0.2))+
     theme_minimal()+
