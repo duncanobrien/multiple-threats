@@ -132,11 +132,12 @@ post_interval_intvadd_diff <- post_intvadd_diff %>%
   group_by(threat_group, threats) %>%
   ggdist::median_qi(.width = c(.95, .8, .5), .exclude = c(".draw")) %>%
   mutate(
-    interaction.type = case_when(
+    interaction.type = factor(case_when(
       .upper < 0 ~ "synergistic",
       .lower > 0 ~ "antagonistic",
       TRUE ~ "additive"
-    )
+    ),
+    levels = c("synergistic", "antagonistic", "additive"))
   )
 
 # Calculate the proportions
@@ -145,7 +146,7 @@ data_ad <- post_interval_intvadd_diff %>%
   separate_rows(threats, sep = "\\.") %>%
   mutate(interaction.type = factor(
     interaction.type,
-    levels = c("synergy", "additive", "antagonistic")
+    levels = c("synergistic", "additive", "antagonistic")
   )) %>%
   group_by(threats, interaction.type) %>%
   summarise(n = n()) %>%
@@ -165,10 +166,10 @@ data_ad <- post_interval_intvadd_diff %>%
 data <- data_ad %>%
   mutate(
     freq = freq * 100,
-    interaction.type = gsub("synergy", "Synergy", interaction.type),
+    interaction.type = gsub("synergistic", "Synergistic", interaction.type),
     interaction.type = gsub("additive", "Additive", interaction.type),
     interaction.type = gsub("antagonistic", "Antagonistic", interaction.type),
-    interaction.type = fct_relevel(interaction.type, c("Synergy", "Antagonistic", "Additive")),
+    interaction.type = fct_relevel(interaction.type, c("Synergistic", "Antagonistic", "Additive")),
     threats = gsub("invasive", "Invasive", threats),
     threats = gsub("habitatl", "Habitat loss", threats),
     threats = gsub("climatechange", "Climate change", threats),
