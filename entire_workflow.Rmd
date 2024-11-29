@@ -46,14 +46,15 @@ library(MetBrewer)
 library(wesanderson)
 library(cowplot)
 library(waffle)
+set.seed(2024)
 ```
 
 Load custom functions used in downstream processing
 ```{r preamble2}
-source("Code/prep_data_grid_fn.R")
-source("Code/threat_post_draws.R")
-source("Code/threat_counterfac_draws.R")
-source("Code/threat_counterfac_pred.R") 
+source("Code/utils/prep_data_grid_fn.R")
+source("Code/utils/threat_post_draws.R")
+source("Code/utils/threat_counterfac_draws.R")
+source("Code/utils/threat_counterfac_pred.R") 
 norm_range <- function(x){
   (x-min(x))/(max(x)-min(x))
 }
@@ -1017,6 +1018,222 @@ CCCCC
 ## Identification of interactive vs additive threats (Figure 3)
 ### Extract interactive vs additive draws.
 This is achieved by extracting the first derivative (a.k.a. the slope) of the trend line using the equation $\frac{\Delta y}{\Delta x} = mean(\frac{y_{t+1}-y_{t}}{x_{t+1}-x_{t}})$. These derivatives are estimated for threats combinations without their interactions (i.e.` pollution = 1`, `habitatl = 1`, `pollution.habitatl = 0`, ...) to represent additive effects, and for threats combinations including interactions (i.e.` pollution = 1`, `habitatl = 1`, `pollution.habitatl = 1`, ...). We hypothesis that the difference between interactive and additive derivatives will be 0 if threats contribute additively to model predictions.
+
+```{r fig3pre, message=FALSE}
+intvadd_eg <- tribble(
+  ~ int_class,
+  ~ .value,
+  "Additive",
+  rnorm(1000, mean = -0.1, sd = 0.05),
+  "Interactive",
+  rnorm(1000, mean = -0.3, sd = 0.1)
+) %>%
+  unnest(.value) %>%
+  mutate(.draw = 1:n(), .by = int_class)
+
+intvadd_eg_int <- intvadd_eg %>%
+  group_by(int_class) %>%
+  ggdist::median_qi(.width = c(.95, .8, .5), .exclude = c(".draw"))
+
+intvadd_diff <- intvadd_eg %>%
+  reframe(.value = diff(c(.value[grepl("Additive", int_class)], .value[!grepl("Additive", int_class)])), .by = c(.draw)) %>%
+  mutate(int_class = "Observed\ndifference")
+
+intvadd_diff_int <- intvadd_diff %>%
+  group_by(int_class) %>%
+  ggdist::median_qi(.width = c(.95, .8, .5), .exclude = c(".draw")) %>%
+  mutate(
+    interaction.type = case_when(
+      .upper < 0 ~ "Synergistic",
+      .lower > 0 ~ "Antagonistic",
+      TRUE ~ "Additive"
+    )
+  ) %>%
+  mutate(interaction.type = factor(
+    interaction.type,
+    levels = c("Additive", "Antagonistic", "Synergistic")
+  ))
+
+intvadd_diff_eg <- tribble(
+  ~ int_group,
+  ~ .value,
+  "Synergistic",
+  rnorm(1000, mean = -0.3, sd = 0.1),
+  "Additive",
+  rnorm(1000, mean = 0, sd = 0.05),
+  "Antagonistic",
+  rnorm(1000, mean = 0.2, sd = 0.1),
+) %>%
+  unnest(.value) %>%
+  mutate(.draw = 1:n(), .by = int_group)
+
+intvadd_diff_eg_int <- intvadd_diff_eg %>%
+  group_by(int_group) %>%
+  ggdist::median_qi(.width = c(.95, .8, .5), .exclude = c(".draw")) %>%
+  mutate(
+    interaction.type = case_when(
+      .upper < 0 ~ "Synergistic",
+      .lower > 0 ~ "Antagonistic",
+      TRUE ~ "Additive"
+    )
+  ) %>%
+  mutate(interaction.type = factor(
+    interaction.type,
+    levels = c("Additive", "Antagonistic", "Synergistic")
+  ))
+
+intvadd_p1 <- ggplot(data = intvadd_eg, aes(x = .value, y = int_class)) +
+  tidybayes::stat_slab(alpha = 0.5,
+                       normalize = "xy",
+                       fill = "#BFBFBF") +
+  ggdist::geom_pointinterval(data = intvadd_eg_int,
+                             aes(xmin = .lower, xmax = .upper),
+                             col = "#9B9B9B") +
+  geom_point(
+    data = subset(intvadd_eg_int, .width == 0.8),
+    aes(x = .value),
+    fill = "#9B9B9B",
+    shape = 21,
+    alpha = 0.5,
+    size = 3
+  ) +
+  geom_vline(xintercept = 0,
+             linetype = "dashed",
+             colour = "black") +
+  xlab(expression(paste(
+    "Estimated trend (", Delta, "y", "/", Delta, "x)"
+  ))) +
+  ylab("Threat interaction class") +
+  theme(legend.position = "none")
+
+intvadd_p2 <- ggplot(data = intvadd_diff_eg %>%
+                       merge(select(intvadd_diff_eg_int, -.value), by = c("int_group")) %>%
+                       subset(.width == 0.8),
+                     aes(x = .value, y = int_group)) +
+  tidybayes::stat_slab(aes(fill = interaction.type),
+                       alpha = 0.5,
+                       normalize = "xy") +
+  ggdist::geom_pointinterval(data = intvadd_diff_eg_int,
+                             aes(
+                               xmin = .lower,
+                               xmax = .upper,
+                               col = interaction.type,
+                               fill = interaction.type
+                             )) +
+  geom_point(
+    data = subset(intvadd_diff_eg_int, .width == 0.8),
+    aes(x = .value, col = interaction.type),
+    shape = 21,
+    alpha = 0.5,
+    size = 3
+  ) +
+  geom_vline(xintercept = 0,
+             linetype = "dashed",
+             colour = "black") +
+  scale_fill_manual(
+    values = c(
+      "Additive" = "#694364",
+      "Antagonistic" = "#1E63B3",
+      "Synergistic" = "#B32315"
+    ),
+    name = "Interaction class",
+    drop = FALSE
+  ) +
+  scale_color_manual(
+    values = c(
+      "Additive" = "#694364",
+      "Antagonistic" = "#1E63B3",
+      "Synergistic" = "#B32315"
+    ),
+    drop = FALSE,
+    guide = "none"
+  ) +
+  ylab("") +
+  xlab(expression(
+    paste(
+      "Additive (",
+      Delta,
+      "y",
+      "/",
+      Delta,
+      "x)",
+      " - interactive (",
+      Delta,
+      "y",
+      "/",
+      Delta,
+      "x)"
+    )
+  ))
+
+intvadd_p3 <- ggplot(data = intvadd_diff %>%
+                       merge(select(intvadd_diff_int, -.value), by = c("int_class")) %>%
+                       subset(.width == 0.8),
+                     aes(x = .value, y = int_class)) +
+  tidybayes::stat_slab(aes(fill = interaction.type),
+                       alpha = 0.5,
+                       normalize = "xy") +
+  ggdist::geom_pointinterval(data = intvadd_diff_int,
+                             aes(
+                               xmin = .lower,
+                               xmax = .upper,
+                               col = interaction.type,
+                               fill = interaction.type
+                             )) +
+  geom_point(
+    data = subset(intvadd_diff_int, .width == 0.8),
+    aes(x = .value, col = interaction.type),
+    shape = 21,
+    alpha = 0.5,
+    size = 3
+  ) +
+  geom_vline(xintercept = 0,
+             linetype = "dashed",
+             colour = "black") +
+  scale_fill_manual(
+    values = c(
+      "Additive" = "#694364",
+      "Antagonistic" = "#1E63B3",
+      "Synergistic" = "#B32315"
+    ),
+    guide = "none",
+    drop = FALSE
+  ) +
+  scale_color_manual(
+    values = c(
+      "Additive" = "#694364",
+      "Antagonistic" = "#1E63B3",
+      "Synergistic" = "#B32315"
+    ),
+    drop = FALSE,
+    guide = "none"
+  ) +
+  ylab("") +
+  xlab(expression(
+    paste(
+      "Additive (",
+      Delta,
+      "y",
+      "/",
+      Delta,
+      "x)",
+      " - interactive (",
+      Delta,
+      "y",
+      "/",
+      Delta,
+      "x)"
+    )
+  ))
+
+(intvadd_p1 + intvadd_p2)/intvadd_p3 +
+  plot_layout(ncol = 1,widths = c(0.5,0.5,1), heights = c(1,1,0.75), guides = "collect") +
+  plot_annotation(tag_levels = "a") &
+  theme(plot.tag = element_text(face = "bold"),
+        legend.position = "bottom")
+```
+
+Now let's do the process on the actual modelled trends.
 ```{r fig3a, message=FALSE}
 all_threats <- c("pollution",
                  "habitatl",

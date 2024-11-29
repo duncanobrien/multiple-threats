@@ -1,0 +1,2573 @@
+---
+title: "Halting predicted vertebrate declines requires tackling multiple drivers of biodiversity loss"
+author: 
+  - Pol Capdevila$^{1,2,3,*}$
+  - Duncan A. O’Brien$^{1,*}$
+  - Valentina Marconi$^{4}$
+  - Thomas F. Johnson$^{5}$
+  - Robin Freeman$^{4}$
+  - Louise McRae$^{4,\dagger}$
+  - Christopher F. Clements$^{1,\dagger}$
+date: 
+  - 1. School of Biological Sciences, University of Bristol, Bristol, UK \newline
+  - 2. Departament de Biologia Evolutiva, Ecologia i Ciències Ambientals, Universitat de Barcelona, Barcelona, Spain \newline 
+  - 3. Institut de Recerca de la Biodiversitat, Universitat de Barcelona (UB), Barcelona, Spain \newline 
+  - 4. Institute of Zoology, Zoological Society of London, London, UK \newline 
+  - 5. School of Biosciences, University of Sheffield, Sheffield, UK \newline 
+  - \text{*} These authors contributed equally to this work \newline 
+  - \text{$\dagger$} These authors contributed equally to this work \newline 
+header-includes:
+   - \usepackage{caption}
+   -   \newcommand{\beginsupplement}{\setcounter{table}{0}  \renewcommand{\thetable}{S\arabic{table}} \setcounter{figure}{0} \renewcommand{\thefigure}{S\arabic{figure}}}
+output: 
+  pdf_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+#knitr::dep_auto()
+```
+
+\beginsupplement
+
+```{r preamble, include = FALSE}
+
+library(tidyverse)
+library(MetBrewer)
+library(cowplot)
+library(patchwork)
+library(bayesplot)
+library(bayestestR)
+library(brms)
+library(tidyverse)
+library(ggridges)
+library(tidybayes)
+library(parallel)
+library(doSNOW)
+library(rstan)
+library(knitr)
+library(foreach)
+library(kableExtra)
+library(wesanderson)
+library(waffle)
+
+set.seed(43)
+
+source("../Code/utils/prepare_data_fn.R")
+source("../Code/utils/prep_data_grid_fn.R")
+source("../Code/utils/threat_post_draws.R")
+source("../Code/utils/threat_counterfac_draws.R")
+source("../Code/utils/threat_counterfac_pred.R")
+
+dd_long <- readRDS("LivingPlanetData2.RDS")
+
+# Load the models
+
+m_fr <- read_rds("../Results/models/fre_mod.RDS")
+m_mar <- read_rds("../Results/models/mar_mod.RDS")
+m_ter <- read_rds("../Results/models/ter_mod.RDS")
+m_am <- read_rds("../Results/models/amph_mod.RDS")
+m_bi <- read_rds("../Results/models/bir_mod.RDS")
+m_f <- read_rds("../Results/models/fish_mod.RDS")
+m_ma <- read_rds("../Results/models/mam_mod.RDS")
+m_rep <- read_rds("../Results/models/rep_mod.RDS")
+
+mod_glob40 <- readRDS("../Results/models/mod_global_40.RDS")
+mod_glob20 <- readRDS("../Results/models/mod_global_20.RDS")
+mod_glob <- readRDS("../Results/models/mod_global_rerun.RDS")
+
+mod_dat_full <- prepare_data(dd_long, duration = 10, ratio = 0.5)
+
+system_ls <- list(m_fr, m_mar, m_ter) %>%
+  `names<-`(c("Freshwater", "Marine", "Terrestrial"))
+taxon_ls <- list(m_am, m_bi, m_f, m_ma, m_rep) %>%
+  `names<-`(c("Amphibian", "Bird", "Fish", "Mammal", "Reptile"))
+
+all_threats <- c("pollution",
+                 "habitatl",
+                 "climatechange",
+                 "invasive",
+                 "exploitation",
+                 "disease")
+
+# Set default ggplot theme
+
+theme_set(
+  theme_minimal() +
+    theme(
+      axis.title.x = element_text(size = 12, margin = margin(
+        t = 10,
+        r = 0,
+        b = 0,
+        l = 0
+      )),
+      axis.title.y = element_text(size = 12, margin = margin(
+        t = 0,
+        r = 10,
+        b = 0,
+        l = 0
+      )),
+      axis.line.x = element_line(color = "black", linewidth = 0.5),
+      axis.line.y = element_line(color = "black", linewidth = 0.5),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.text.x = element_text(color = "black", size = 12),
+      axis.text.y = element_text(color = "black", size = 12),
+      strip.text.x = element_text(size = 12),
+      axis.ticks = element_line(color = "black"),
+      plot.title = element_text(hjust = 0.5),
+      plot.margin = unit(c(0, 0, 0, 0), "cm")
+    )
+)
+
+#Create a palette for the threats
+
+threat_palette <- c(met.brewer(name = "Hokusai1", n = 6, type = "continuous"))
+
+mod_ls_diag <- list(mod_glob, m_fr, m_mar, m_ter, m_am, m_bi, m_f, m_ma, m_rep)
+```
+
+\newpage
+
+# Appendix S1: Extended methods
+
+```{r fig1a, fig.height=6, fig.width=10, fig.cap="Demonstration of the threat classification protocol. (a) Trends are first predicted for each threat in additive or interactive combinations. (b) If the difference between predicted interactive trends and additive trends is calculated, there are three possible classes: additive (no difference predictions made by additive and interacting threats), antagonistic (interacting threat predictions are less negative than additive predictions), or synergistic (interacting threat predictions are more negative than additive predictions). Classes are defined using the 80% credible interval. We consider that a synergy 'worsens' trends -  i.e. becomes more negative. (c) The actual difference between predictions made in panel a."}
+intvadd_eg <- tribble(
+  ~ int_class,
+  ~ .value,
+  "Additive",
+  rnorm(1000, mean = -0.1, sd = 0.05),
+  "Interactive",
+  rnorm(1000, mean = -0.3, sd = 0.1)
+) %>%
+  unnest(.value) %>%
+  mutate(.draw = 1:n(), .by = int_class)
+
+intvadd_eg_int <- intvadd_eg %>%
+  group_by(int_class) %>%
+  ggdist::median_qi(.width = c(.95, .8, .5), .exclude = c(".draw"))
+
+intvadd_diff <- intvadd_eg %>%
+  reframe(.value = diff(c(.value[grepl("Additive", int_class)], .value[!grepl("Additive", int_class)])), .by = c(.draw)) %>%
+  mutate(int_class = "Observed\ndifference")
+
+intvadd_diff_int <- intvadd_diff %>%
+  group_by(int_class) %>%
+  ggdist::median_qi(.width = c(.95, .8, .5), .exclude = c(".draw")) %>%
+  mutate(
+    interaction.type = case_when(
+      .upper < 0 ~ "Synergistic",
+      .lower > 0 ~ "Antagonistic",
+      TRUE ~ "Additive"
+    )
+  ) %>%
+  mutate(interaction.type = factor(
+    interaction.type,
+    levels = c("Additive", "Antagonistic", "Synergistic")
+  ))
+
+intvadd_diff_eg <- tribble(
+  ~ int_group,
+  ~ .value,
+  "Synergistic",
+  rnorm(1000, mean = -0.3, sd = 0.1),
+  "Additive",
+  rnorm(1000, mean = 0, sd = 0.05),
+  "Antagonistic",
+  rnorm(1000, mean = 0.2, sd = 0.1),
+) %>%
+  unnest(.value) %>%
+  mutate(.draw = 1:n(), .by = int_group)
+
+intvadd_diff_eg_int <- intvadd_diff_eg %>%
+  group_by(int_group) %>%
+  ggdist::median_qi(.width = c(.95, .8, .5), .exclude = c(".draw")) %>%
+  mutate(
+    interaction.type = case_when(
+      .upper < 0 ~ "Synergistic",
+      .lower > 0 ~ "Antagonistic",
+      TRUE ~ "Additive"
+    )
+  ) %>%
+  mutate(interaction.type = factor(
+    interaction.type,
+    levels = c("Additive", "Antagonistic", "Synergistic")
+  ))
+
+intvadd_p1 <- ggplot(data = intvadd_eg, aes(x = .value, y = int_class)) +
+  tidybayes::stat_slab(alpha = 0.5,
+                       normalize = "xy",
+                       fill = "#BFBFBF") +
+  ggdist::geom_pointinterval(data = intvadd_eg_int,
+                             aes(xmin = .lower, xmax = .upper),
+                             col = "#9B9B9B") +
+  geom_point(
+    data = subset(intvadd_eg_int, .width == 0.8),
+    aes(x = .value),
+    fill = "#9B9B9B",
+    shape = 21,
+    alpha = 0.5,
+    size = 3
+  ) +
+  geom_vline(xintercept = 0,
+             linetype = "dashed",
+             colour = "black") +
+  xlab(expression(paste(
+    "Estimated trend (", Delta, "y", "/", Delta, "x)"
+  ))) +
+  ylab("Threat interaction class") +
+  theme(legend.position = "none")
+
+intvadd_p2 <- ggplot(data = intvadd_diff_eg %>%
+                       merge(select(intvadd_diff_eg_int, -.value), by = c("int_group")) %>%
+                       subset(.width == 0.8),
+                     aes(x = .value, y = int_group)) +
+  tidybayes::stat_slab(aes(fill = interaction.type),
+                       alpha = 0.5,
+                       normalize = "xy") +
+  ggdist::geom_pointinterval(data = intvadd_diff_eg_int,
+                             aes(
+                               xmin = .lower,
+                               xmax = .upper,
+                               col = interaction.type,
+                               fill = interaction.type
+                             )) +
+  geom_point(
+    data = subset(intvadd_diff_eg_int, .width == 0.8),
+    aes(x = .value, col = interaction.type),
+    shape = 21,
+    alpha = 0.5,
+    size = 3
+  ) +
+  geom_vline(xintercept = 0,
+             linetype = "dashed",
+             colour = "black") +
+  scale_fill_manual(
+    values = c(
+      "Additive" = "#694364",
+      "Antagonistic" = "#1E63B3",
+      "Synergistic" = "#B32315"
+    ),
+    name = "Interaction class",
+    drop = FALSE
+  ) +
+  scale_color_manual(
+    values = c(
+      "Additive" = "#694364",
+      "Antagonistic" = "#1E63B3",
+      "Synergistic" = "#B32315"
+    ),
+    drop = FALSE,
+    guide = "none"
+  ) +
+  ylab("") +
+  xlab(expression(
+    paste(
+      "Additive (",
+      Delta,
+      "y",
+      "/",
+      Delta,
+      "x)",
+      " - interactive (",
+      Delta,
+      "y",
+      "/",
+      Delta,
+      "x)"
+    )
+  ))
+
+intvadd_p3 <- ggplot(data = intvadd_diff %>%
+                       merge(select(intvadd_diff_int, -.value), by = c("int_class")) %>%
+                       subset(.width == 0.8),
+                     aes(x = .value, y = int_class)) +
+  tidybayes::stat_slab(aes(fill = interaction.type),
+                       alpha = 0.5,
+                       normalize = "xy") +
+  ggdist::geom_pointinterval(data = intvadd_diff_int,
+                             aes(
+                               xmin = .lower,
+                               xmax = .upper,
+                               col = interaction.type,
+                               fill = interaction.type
+                             )) +
+  geom_point(
+    data = subset(intvadd_diff_int, .width == 0.8),
+    aes(x = .value, col = interaction.type),
+    shape = 21,
+    alpha = 0.5,
+    size = 3
+  ) +
+  geom_vline(xintercept = 0,
+             linetype = "dashed",
+             colour = "black") +
+  scale_fill_manual(
+    values = c(
+      "Additive" = "#694364",
+      "Antagonistic" = "#1E63B3",
+      "Synergistic" = "#B32315"
+    ),
+    guide = "none",
+    drop = FALSE
+  ) +
+  scale_color_manual(
+    values = c(
+      "Additive" = "#694364",
+      "Antagonistic" = "#1E63B3",
+      "Synergistic" = "#B32315"
+    ),
+    drop = FALSE,
+    guide = "none"
+  ) +
+  ylab("") +
+  xlab(expression(
+    paste(
+      "Additive (",
+      Delta,
+      "y",
+      "/",
+      Delta,
+      "x)",
+      " - interactive (",
+      Delta,
+      "y",
+      "/",
+      Delta,
+      "x)"
+    )
+  ))
+
+(intvadd_p1 + intvadd_p2)/intvadd_p3 +
+  plot_layout(ncol = 1,widths = c(0.5,0.5,1), heights = c(1,1,0.75), guides = "collect") +
+  plot_annotation(tag_levels = "a") &
+  theme(plot.tag = element_text(face = "bold"),
+        legend.position = "bottom")
+
+```
+
+\newpage
+
+# Appendix S2: Extended results
+
+```{r tableS3a}
+tableS1 <- describe_posterior(mod_glob) %>%
+  select(-c(pd, CI, ROPE_CI, ROPE_low, ROPE_high, ROPE_Percentage)) %>%
+  mutate(Parameter = gsub("b_", "", Parameter)) %>%
+  mutate(across(Median:CI_high, ~ round(., digits = 3))) %>%
+  mutate(across(Rhat:ESS, ~ round(., digits = 2)))
+
+kable(tableS1, row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Model coefficents for global population trends. Median represents the median of the posterior distribution. CI low and high are the lower and higher values of the 95\\% credible interval. Rhat is the ratio of the effective sample size to the overall number of iterations, with values close to one indicating convergence values") %>%
+   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
+```
+
+\newpage
+
+```{r figS3a, fig.height=4, fig.width=14, fig.cap="Effects of threats on vertebrate population trends across realms. 95\\% credible intervals of the effects of single and interacting threats upon (a) freshwater, (b) marine, and (c) terrestrial time series trends. The dashed vertical line shows zero influence – i.e., no effect of the factors – while the None parameter is the trend in the absence of threats. The remaining parameters represent modifications of this None trend. The credible intervals are based on 1,000 samples from the posterior distribution of the model coefficients."}
+all_threats <- c(
+  "None",
+  "Pollution",
+  "Habitat loss",
+  "Climate change",
+  "Invasive",
+  "Exploitation",
+  "Disease"
+)
+
+# Obtain the coefficients and clean the data
+
+system_coefs <- lapply(system_ls, function(mod) {
+  coefs_df <- mod %>%
+    gather_draws(`b_scaled_year.*`, regex = TRUE) %>%
+    mutate(
+      .variable = gsub("b_", "", .variable),
+      .variable = gsub("scaled_year:", "", .variable),
+      .variable = gsub("invasive", "Invasive", .variable),
+      .variable = gsub("habitatl", "Habitat loss", .variable),
+      .variable = gsub("climatechange", "Climate change", .variable),
+      .variable = gsub("pollution", "Pollution", .variable),
+      .variable = gsub("exploitation", "Exploitation", .variable),
+      .variable = gsub("disease", "Disease", .variable),
+      .variable = gsub("scaled_year", "None", .variable),
+      .variable = gsub(" 1", "", .variable)
+    )
+  
+  # Obtain the coeficients for each threat group
+  
+  coefs_group <- do.call("rbind", lapply(all_threats, function(x) {
+    out <- coefs_df %>%
+      subset(grepl(x, .variable)) %>% # Filter to the current threat
+      mutate(
+        int_group = ifelse(grepl("\\.", .variable), "Interactive", "Singular"),
+        # Classify threats as 'singular' or 'interactive'
+        threat_group = x
+      ) %>% # Assign the current threat to a grouping variable
+      ungroup()
+    return(out)
+  }))
+  
+  # Calculate median and quantile intervals for the rate of change by threat group and interaction type
+  
+  coefs_interval <- coefs_group  %>%
+    group_by(threat_group, int_group) %>%
+    ggdist::median_qi(
+      .width = c(.95, .8, .5),
+      .exclude = c(".chain", ".iteration", ".draw", ".variable")
+    ) %>%
+    mutate(
+      int_group = ifelse(int_group == "Singular", "Singular", "Interactive"),
+      int = ordered(int_group, c("Singular", "Interactive"))
+    )
+  
+  # Create a data frame matching threat groups to colors
+  
+  palette <- data.frame(
+    threat_group = unique(coefs_group$threat_group),
+    fill_col = c("grey50", threat_palette)
+  )
+  
+  # Prepare the data for plotting by joining with the palette and adjusting factors
+  
+  plot_coefs <- coefs_group %>%
+    left_join(palette, by = "threat_group") %>%
+    mutate(fill_col = factor(fill_col),
+           int = ordered(int_group, c("Singular", "Interactive")))
+  
+  (
+    g2a <- plot_coefs %>%
+      ggplot(aes(
+        x = .value, y = reorder(threat_group, .value)
+      )) +
+      tidybayes::stat_slab(
+        data = plot_coefs %>%
+          filter(int_group == "Singular"),
+        aes(fill = fill_col, group = .variable),
+        alpha = 0.5,
+        normalize = "groups"
+      ) +
+      tidybayes::stat_slab(
+        data = subset(plot_coefs, int_group == "Interactive"),
+        aes(fill = fill_col, group = .variable),
+        alpha = 0.5,
+        normalize = "panels"
+      ) +
+      ggdist::geom_pointinterval(
+        data = coefs_interval,
+        aes(xmin = .lower, xmax = .upper),
+        position = position_dodge()
+      ) +
+      geom_vline(
+        xintercept = 0,
+        linetype = "dashed",
+        colour = "grey50"
+      ) +
+      labs(x = "Effect on population trends", y = NULL) +
+      coord_cartesian(xlim = c(-0.2, 0.2)) +
+      scale_x_continuous(breaks = seq(-0.1, 0.1, by = 0.1)) +
+      facet_wrap(~ int) +
+      ylab("") +
+      scale_fill_manual(values = levels(plot_coefs$fill_col), guide = "none") +
+      scale_color_manual(values = levels(plot_coefs$fill_col), guide = "none") +
+      theme(axis.title.y = element_blank())
+  )
+  
+  return(g2a)
+  
+})
+
+combinedS5 <-  wrap_plots(system_coefs, ncol = 3) +
+  plot_annotation(tag_levels = "a") &
+  labs(x = NULL, y = NULL) &
+  theme(plot.tag = element_text(face = 'bold'))
+
+# Create a separate plot for the y-axis label
+
+ylabelS5 <- ggplot(data.frame(l = system_coefs[[1]]$labels$y, x = 1, y = 1)) +
+  geom_text(aes(x, y, label = l), size = 5, angle = 90) +
+  theme_void() +
+  coord_cartesian(clip = "off")
+
+# Create a separate plot for the x-axis label
+
+xlabelS5 <- ggplot(data.frame(l = system_coefs[[1]]$labels$x, x = 1, y = 1)) +
+  geom_text(aes(x, y, label = l), size = 5) +
+  theme_void() +
+  coord_cartesian(clip = "off")
+
+# Combine the original figure with the y-axis label
+
+topS5 <- cowplot::plot_grid(ylabelS5, combinedS5, rel_widths = c(1, 25))
+
+# Combine with the x-axis label
+
+cowplot::plot_grid(
+  topS5,
+  xlabelS5,
+  nrow = 2,
+  rel_heights = c(25, 1)
+)
+```
+
+\newpage
+
+```{r figS3b, fig.height=8, fig.width=13, fig.cap="Ultimate effect of threats on vertebrate population trends across realms. 95\\% credible intervals of the ultimate estimated trend in the presence of single and interacting threats for (a) freshwater, (b) marine, and (c) terrestrial time series. The dashed horizontal line shows the zero-slope – i.e., no effect of the factors. The credible intervals are based on 1,000 samples from the posterior distribution of the model predictions where threats are included/excluded from the model matrix."}
+threats <- c("pollution",
+             "habitatl",
+             "climatechange",
+             "invasive",
+             "exploitation",
+             "disease")
+
+system_dydx <- lapply(system_ls, function(mod) {
+  threats_col <-  colnames(mod$data)[grepl(paste(threats, collapse = "|"), colnames(mod$data))]
+  # Project the population
+  
+  postdraws <- threat_post_draws(
+    model = mod,
+    threat_comns = c("none", threats_col),
+    ndraws = 1000,
+    nuisance = c("series", "SpeciesName"),
+    n.cores = 4
+  )
+  
+  # Calculate the derivative
+  
+  post_proj <- do.call("rbind", lapply(c("none", threats), function(x) {
+    out <- postdraws %>%
+      subset(grepl(x, threat)) %>% # Filter to the current threat
+      reframe(.value = mean(diff(.value) / diff(time)),
+              .by = c(threat, .draw)) %>% # Calculate the first derivative (rate of change) for each time series
+      ungroup() %>%
+      mutate(int_group = ifelse(grepl("\\.", threat), "combined", "single")) %>% # Classify threats as 'single' or 'combined'
+      mutate(threat_group = x) %>% # Assign the current threat to a grouping variable
+      # Rename threat groups for clarity
+      mutate(
+        threat_group = gsub("invasive", "Invasive", threat_group),
+        threat_group = gsub("habitatl", "Habitat\nloss", threat_group),
+        threat_group = gsub("climatechange", "Climate\nchange", threat_group),
+        threat_group = gsub("pollution", "Pollution", threat_group),
+        threat_group = gsub("exploitation", "Exploitation", threat_group),
+        threat_group = gsub("disease", "Disease", threat_group),
+        threat_group = gsub("none", "None", threat_group)
+      ) %>%
+      group_by(threat) %>%
+      ungroup()
+    return(out)
+  }))
+  
+  # Calculate median and quantile intervals for the rate of change by threat group and interaction type
+  
+  dydx_interval <- post_proj  %>%
+    group_by(threat_group, int_group) %>%
+    ggdist::median_qi(
+      .width = c(.95, .8, .5),
+      .exclude = c(".draw", "threat", "threat_group")
+    ) %>%
+    mutate(
+      int_group = ifelse(int_group == "single", "Singular", "Interactive"),
+      int = ordered(int_group, c("Singular", "Interactive"))
+    )
+  
+  # Create a data frame matching threat groups to colors
+  
+  palette <- data.frame(
+    threat_group = unique(post_proj$threat_group),
+    fill_col = c("grey50", threat_palette)
+  )
+  
+  # Prepare the data for plotting by joining with the palette and adjusting factors
+  
+  plot_dydx_threats <- post_proj %>%
+    left_join(palette, by = "threat_group") %>%
+    mutate(
+      fill_col = factor(fill_col),
+      int_group = ifelse(int_group == "single", "Singular", "Interactive"),
+      int = ordered(int_group, c("Singular", "Interactive"))
+    )
+  
+  (
+    g2c <- ggplot(data = plot_dydx_threats, aes(
+      y = .value, x = reorder(threat_group, desc(.value))
+    )) +
+      ggdist::stat_halfeye(
+        data = plot_dydx_threats %>%
+          filter(int_group == "Singular"),
+        aes(fill = fill_col, group = threat_group),
+        alpha = 0.5,
+        adjust = .5,
+        width = .3,
+        .width = 0,
+        justification = -.5,
+        point_colour = NA
+      ) +
+      geom_boxplot(
+        data = plot_dydx_threats %>%
+          filter(int_group == "Singular"),
+        aes(fill = fill_col, group = threat_group),
+        width = .2,
+        outliers = F,
+        alpha = .7
+      ) +
+      ggdist::stat_halfeye(
+        data = plot_dydx_threats %>%
+          filter(int_group == "Interactive"),
+        aes(fill = fill_col, group = threat),
+        alpha = 0.5,
+        adjust = .5,
+        width = .3,
+        .width = 0,
+        justification = -.5,
+        point_colour = NA
+      ) +
+      geom_boxplot(
+        data = plot_dydx_threats %>%
+          filter(int_group == "Interactive"),
+        aes(fill = fill_col, group = threat_group),
+        width = .2,
+        outliers = F,
+        alpha = .7
+      ) +
+      geom_hline(
+        yintercept = 0,
+        linetype = "dashed",
+        colour = "grey50"
+      ) +
+      facet_wrap(~ int) +
+      ylab(expression(
+        paste("Population trend (", Delta, "y", "/", Delta, "x)")
+      )) +
+      xlab("") +
+      facet_wrap(~ int, scales = "free") +
+      scale_fill_manual(
+        values = levels(plot_dydx_threats$fill_col),
+        guide = "none"
+      ) +
+      coord_cartesian(ylim = c(-0.2, 0.2)) +
+      theme(
+        plot.margin = unit(c(0, 0.5, 0, .5), "cm"),
+        axis.title.x = element_blank()
+      )
+  )
+  
+})
+
+combinedS7 <-  wrap_plots(system_dydx, nrow = 3) +
+  plot_annotation(tag_levels = "a") &
+  labs(x = NULL, y = NULL) &
+  theme(plot.tag = element_text(face = 'bold'))
+
+# Create a separate plot for the y-axis label
+
+ylabelS7 <- ggplot(data.frame(x = 1, y = 1)) +
+  geom_text(
+    aes(x, y, label = "Population~trend~(Delta~y/Delta~x)"),
+    parse = TRUE,
+    size = 5,
+    angle = 90
+  ) +
+  theme_void() +
+  coord_cartesian(clip = "off")
+
+# Create a separate plot for the x-axis label
+
+xlabelS7 <- ggplot(data.frame(x = 1, y = 1)) +
+  geom_text(aes(x, y, label = system_dydx[[1]]$labels$x), size = 5) +
+  theme_void() +
+  coord_cartesian(clip = "off")
+
+# Combine the original figure with the y-axis label
+
+topS7 <- cowplot::plot_grid(ylabelS7, combinedS7, rel_widths = c(1, 25))
+
+# Combine with the x-axis label
+
+cowplot::plot_grid(
+  topS7,
+  xlabelS7,
+  nrow = 2,
+  rel_heights = c(25, 1)
+)
+```
+
+\newpage
+
+```{r tableS3b}
+tableS2 <- lapply(seq_along(system_ls), function(mod) {
+  describe_posterior(system_ls[[mod]]) %>%
+    select(-c(pd, CI, ROPE_CI, ROPE_low, ROPE_high, ROPE_Percentage)) %>%
+    mutate(Parameter = gsub("b_", "", Parameter)) %>%
+    mutate(across(Median:CI_high, ~ round(., digits = 3))) %>%
+    mutate(across(Rhat:ESS, ~ round(., digits = 2))) %>%
+    mutate(System = names(system_ls)[[mod]], .before = Parameter)
+}) %>%
+  bind_rows() %>%
+  arrange(System)
+
+kable(tableS2, row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Model coefficents for global population trends across systems. Median represents the median of the posterior distribution. CI low and high are the lower and higher values of the 95\\% credible interval. Rhat is the ratio of the effective sample size to the overall number of iterations, with values close to one indicating convergence values.") %>%
+   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
+```
+
+\newpage
+
+```{r figS3c, fig.height=8, fig.width=14, fig.cap="Effects of threats on vertebrate population trends across taxa. 95 % credible intervals of the effects of single and interacting threats upon (a) amphibian, (b) bird, (c) fish, (d) mammalian, and (e) reptilian time series trends. The dashed vertical line shows zero influence – i.e., no effect of the factors – while the None parameter is the trend in the absence of threats. The remaining parameters represent modifications of this None trend. The credible intervals are based on 1,000 samples from the posterior distribution of the model coefficients"}
+all_threats <- c(
+  "None",
+  "Pollution",
+  "Habitat loss",
+  "Climate change",
+  "Invasive",
+  "Exploitation",
+  "Disease"
+)
+
+# Obtain the coefficients and clean the data
+
+taxon_coefs <- lapply(taxon_ls, function(mod) {
+  coefs_df <- mod %>%
+    gather_draws(`b_scaled_year.*`, regex = TRUE) %>%
+    mutate(
+      .variable = gsub("b_", "", .variable),
+      .variable = gsub("scaled_year:", "", .variable),
+      .variable = gsub("invasive", "Invasive", .variable),
+      .variable = gsub("habitatl", "Habitat loss", .variable),
+      .variable = gsub("climatechange", "Climate change", .variable),
+      .variable = gsub("pollution", "Pollution", .variable),
+      .variable = gsub("exploitation", "Exploitation", .variable),
+      .variable = gsub("disease", "Disease", .variable),
+      .variable = gsub("scaled_year", "None", .variable),
+      .variable = gsub(" 1", "", .variable)
+    )
+  
+  # Obtain the coeficients for each threat group
+  
+  coefs_group <- do.call("rbind", lapply(all_threats, function(x) {
+    out <- coefs_df %>%
+      subset(grepl(x, .variable)) %>% # Filter to the current threat
+      mutate(
+        int_group = ifelse(grepl("\\.", .variable), "Interactive", "Singular"),
+        # Classify threats as 'singular' or 'interactive'
+        threat_group = x
+      ) %>% # Assign the current threat to a grouping variable
+      ungroup()
+    return(out)
+  }))
+  
+  # Calculate median and quantile intervals for the rate of change by threat group and interaction type
+  
+  coefs_interval <- coefs_group  %>%
+    group_by(threat_group, int_group) %>%
+    ggdist::median_qi(
+      .width = c(.95, .8, .5),
+      .exclude = c(".chain", ".iteration", ".draw", ".variable")
+    ) %>%
+    mutate(
+      int_group = ifelse(int_group == "Singular", "Singular", "Interactive"),
+      int = ordered(int_group, c("Singular", "Interactive"))
+    )
+  
+  # Create a data frame matching threat groups to colors
+  
+  palette <- data.frame(
+    threat_group = unique(coefs_group$threat_group),
+    fill_col = c("grey50", threat_palette)
+  )
+  
+  # Prepare the data for plotting by joining with the palette and adjusting factors
+  
+  plot_coefs <- coefs_group %>%
+    left_join(palette, by = "threat_group") %>%
+    mutate(fill_col = factor(fill_col),
+           int = ordered(int_group, c("Singular", "Interactive")))
+  
+  (
+    g2a <- plot_coefs %>%
+      ggplot(aes(
+        x = .value, y = reorder(threat_group, .value)
+      )) +
+      tidybayes::stat_slab(
+        data = plot_coefs %>%
+          filter(int_group == "Singular"),
+        aes(fill = fill_col, group = .variable),
+        alpha = 0.5,
+        normalize = "groups"
+      ) +
+      tidybayes::stat_slab(
+        data = subset(plot_coefs, int_group == "Interactive"),
+        aes(fill = fill_col, group = .variable),
+        alpha = 0.5,
+        normalize = "panels"
+      ) +
+      ggdist::geom_pointinterval(
+        data = coefs_interval,
+        aes(xmin = .lower, xmax = .upper),
+        position = position_dodge()
+      ) +
+      geom_vline(
+        xintercept = 0,
+        linetype = "dashed",
+        colour = "grey50"
+      ) +
+      labs(x = "Effect on population trends", y = NULL) +
+      coord_cartesian(xlim = c(-0.2, 0.2)) +
+      scale_x_continuous(breaks = seq(-0.1, 0.1, by = 0.1)) +
+      facet_wrap(~ int) +
+      ylab("") +
+      scale_fill_manual(values = levels(plot_coefs$fill_col), guide = "none") +
+      scale_color_manual(values = levels(plot_coefs$fill_col), guide = "none") +
+      theme(axis.title.y = element_blank())
+  )
+  
+  return(g2a)
+  
+})
+
+combinedS6 <-  wrap_plots(taxon_coefs, ncol = 3) +
+  plot_annotation(tag_levels = "a") &
+  labs(x = NULL, y = NULL) &
+  theme(plot.tag = element_text(face = 'bold'))
+
+# Create a separate plot for the y-axis label
+
+ylabelS6 <- ggplot(data.frame(l = system_coefs[[1]]$labels$y, x = 1, y = 1)) +
+  geom_text(aes(x, y, label = l), size = 5, angle = 90) +
+  theme_void() +
+  coord_cartesian(clip = "off")
+
+# Create a separate plot for the x-axis label
+
+xlabelS6 <- ggplot(data.frame(l = system_coefs[[1]]$labels$x, x = 1, y = 1)) +
+  geom_text(aes(x, y, label = l), size = 5) +
+  theme_void() +
+  coord_cartesian(clip = "off")
+
+# Combine the original figure with the y-axis label
+
+topS6 <- cowplot::plot_grid(ylabelS6, combinedS6, rel_widths = c(1, 25))
+
+# Combine with the x-axis label
+
+cowplot::plot_grid(
+  topS6,
+  xlabelS6,
+  nrow = 2,
+  rel_heights = c(25, 1)
+)
+```
+
+\newpage
+
+```{r figS3d, fig.height=14, fig.width=13, messages = FALSE,fig.cap="Ultimate effect of threats on vertebrate population trends across taxa. 95 % credible intervals of ultimate estimated trends in the presence of single and interacting threats for (a) amphibian, (b) bird, (c) fish, (d) mammalian, and (e) reptilian. The dashed horizontal line shows the zero-slope – i.e., no effect of the factors. The credible intervals are based on 1,000 samples from the posterior distribution of the model predictions where threats are included/excluded from the model matrix."}
+threats <- c("pollution",
+             "habitatl",
+             "climatechange",
+             "invasive",
+             "exploitation",
+             "disease")
+
+taxon_dydx <- lapply(taxon_ls, function(mod) {
+  threats_col <-  colnames(mod$data)[grepl(paste(threats, collapse = "|"), colnames(mod$data))]
+  # Project the population
+  
+  postdraws <- threat_post_draws(
+    model = mod,
+    threat_comns = c("none", threats_col),
+    ndraws = 1000,
+    nuisance = c("series", "SpeciesName"),
+    n.cores = 4
+  )
+  
+  # Calculate the derivative
+  
+  post_proj <- do.call("rbind", lapply(c("none", threats), function(x) {
+    out <- postdraws %>%
+      subset(grepl(x, threat)) %>% # Filter to the current threat
+      reframe(.value = mean(diff(.value) / diff(time)),
+              .by = c(threat, .draw)) %>% # Calculate the first derivative (rate of change) for each time series
+      ungroup() %>%
+      mutate(int_group = ifelse(grepl("\\.", threat), "combined", "single")) %>% # Classify threats as 'single' or 'combined'
+      mutate(threat_group = x) %>% # Assign the current threat to a grouping variable
+      # Rename threat groups for clarity
+      mutate(
+        threat_group = gsub("invasive", "Invasive", threat_group),
+        threat_group = gsub("habitatl", "Habitat\nloss", threat_group),
+        threat_group = gsub("climatechange", "Climate\nchange", threat_group),
+        threat_group = gsub("pollution", "Pollution", threat_group),
+        threat_group = gsub("exploitation", "Exploitation", threat_group),
+        threat_group = gsub("disease", "Disease", threat_group),
+        threat_group = gsub("none", "None", threat_group)
+      ) %>%
+      group_by(threat) %>%
+      ungroup()
+    return(out)
+  }))
+  
+  # Calculate median and quantile intervals for the rate of change by threat group and interaction type
+  
+  dydx_interval <- post_proj  %>%
+    group_by(threat_group, int_group) %>%
+    ggdist::median_qi(
+      .width = c(.95, .8, .5),
+      .exclude = c(".draw", "threat", "threat_group")
+    ) %>%
+    mutate(
+      int_group = ifelse(int_group == "single", "Singular", "Interactive"),
+      int = ordered(int_group, c("Singular", "Interactive"))
+    )
+  
+  # Create a data frame matching threat groups to colors
+  
+  palette <- data.frame(
+    threat_group = unique(post_proj$threat_group),
+    fill_col = c("grey50", threat_palette)
+  )
+  
+  # Prepare the data for plotting by joining with the palette and adjusting factors
+  
+  plot_dydx_threats <- post_proj %>%
+    left_join(palette, by = "threat_group") %>%
+    mutate(
+      fill_col = factor(fill_col),
+      int_group = ifelse(int_group == "single", "Singular", "Interactive"),
+      int = ordered(int_group, c("Singular", "Interactive"))
+    )
+  
+  (
+    g2c <- ggplot(data = plot_dydx_threats, aes(
+      y = .value, x = reorder(threat_group, desc(.value))
+    )) +
+      ggdist::stat_halfeye(
+        data = plot_dydx_threats %>%
+          filter(int_group == "Singular"),
+        aes(fill = fill_col, group = threat_group),
+        alpha = 0.5,
+        adjust = .5,
+        width = .3,
+        .width = 0,
+        justification = -.5,
+        point_colour = NA
+      ) +
+      geom_boxplot(
+        data = plot_dydx_threats %>%
+          filter(int_group == "Singular"),
+        aes(fill = fill_col, group = threat_group),
+        width = .2,
+        outliers = F,
+        alpha = .7
+      ) +
+      ggdist::stat_halfeye(
+        data = plot_dydx_threats %>%
+          filter(int_group == "Interactive"),
+        aes(fill = fill_col, group = threat),
+        alpha = 0.5,
+        adjust = .5,
+        width = .3,
+        .width = 0,
+        justification = -.5,
+        point_colour = NA
+      ) +
+      geom_boxplot(
+        data = plot_dydx_threats %>%
+          filter(int_group == "Interactive"),
+        aes(fill = fill_col, group = threat_group),
+        width = .2,
+        outliers = F,
+        alpha = .7
+      ) +
+      geom_hline(
+        yintercept = 0,
+        linetype = "dashed",
+        colour = "grey50"
+      ) +
+      facet_wrap(~ int) +
+      ylab(expression(
+        paste("Population trend (", Delta, "y", "/", Delta, "x)")
+      )) +
+      xlab("") +
+      facet_wrap(~ int, scales = "free") +
+      scale_fill_manual(
+        values = levels(plot_dydx_threats$fill_col),
+        guide = "none"
+      ) +
+      coord_cartesian(ylim = c(-0.2, 0.2)) +
+      theme(
+        plot.margin = unit(c(0, 0.5, 0, .5), "cm"),
+        axis.title.x = element_blank()
+      )
+  )
+  
+})
+
+combinedS8 <-  wrap_plots(taxon_dydx, nrow = 5) +
+  plot_annotation(tag_levels = "a") &
+  labs(x = NULL, y = NULL) &
+  theme(plot.tag = element_text(face = 'bold'))
+
+# Create a separate plot for the y-axis label
+
+ylabelS8 <- ggplot(data.frame(x = 1, y = 1)) +
+  geom_text(
+    aes(x, y, label = "Population~trend~(Delta~y/Delta~x)"),
+    parse = TRUE,
+    size = 5,
+    angle = 90
+  ) +
+  theme_void() +
+  coord_cartesian(clip = "off")
+
+# Create a separate plot for the x-axis label
+
+xlabelS8 <- ggplot(data.frame(x = 1, y = 1)) +
+  geom_text(aes(x, y, label = taxon_dydx[[1]]$labels$x), size = 5) +
+  theme_void() +
+  coord_cartesian(clip = "off")
+
+# Combine the original figure with the y-axis label
+
+topS8 <- cowplot::plot_grid(ylabelS8, combinedS8, rel_widths = c(1, 25))
+
+# Combine with the x-axis label
+
+cowplot::plot_grid(
+  topS8,
+  xlabelS8,
+  nrow = 2,
+  rel_heights = c(25, 1)
+)
+```
+
+\newpage
+
+```{r tableS3c}
+tableS3 <- lapply(seq_along(taxon_ls), function(mod) {
+  describe_posterior(taxon_ls[[mod]]) %>%
+    select(-c(pd, CI, ROPE_CI, ROPE_low, ROPE_high, ROPE_Percentage)) %>%
+    mutate(Parameter = gsub("b_", "", Parameter)) %>%
+    mutate(across(Median:CI_high, ~ round(., digits = 3))) %>%
+    mutate(across(Rhat:ESS, ~ round(., digits = 2))) %>%
+    mutate(Taxon = names(taxon_ls)[[mod]], .before = Parameter)
+}) %>%
+  bind_rows() %>%
+  arrange(Taxon)
+
+kable(tableS3, row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Model coefficents for global population trends across taxa. Median represents the median of the posterior distribution. CI low and high are the lower and higher values of the 95\\% credible interval. Rhat is the ratio of the effective sample size to the overall number of iterations, with values close to one indicating convergence values.") %>%
+   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
+```
+
+\newpage
+
+```{r figS5a, fig.height=8, fig.width=10, messages = FALSE,fig.cap="Definition of interacting threat classes using 1000 posterior draws estimated from additive vs interacting model matrices. The difference between additive and interacting trend posteriors is calculated with zero differences assumed to be additive. If the 80 \\% credible interval does not intersect 0, and is negative, then that threat combination is assumed to be synergistic, whereas if positive, the combination is classified as antagonistic."}
+
+all_threats <- c("pollution",
+                 "habitatl",
+                 "climatechange",
+                 "invasive",
+                 "exploitation",
+                 "disease")
+
+# Extract column names from the model
+
+threatcols <- colnames(mod_glob$data)[grepl(paste(all_threats, collapse = "|"), colnames(mod_glob$data))]
+
+# Generate additive combinations of threat columns (i.e., "threat1 + threat2")
+
+additive_cols <- do.call("c", lapply(strsplit(threatcols, "[.]"), function(x) {
+  paste(x, collapse = " + ")
+}))
+
+# Combine original and additive columns into a unique set
+
+target_cols <- unique(c(threatcols, additive_cols))
+
+# Estimate posterior time series for each threat combination (singular, interactive, additive)
+
+postdraws_intvadd <- threat_post_draws(
+  model = mod_glob,
+  threat_comns = target_cols,
+  nuisance = c("series", "SpeciesName"),
+  n.cores = 4,
+  ndraws = 1000
+) %>%
+  mutate(combo_group = case_when(
+    grepl("[.]", threat) ~ "interactive",
+    grepl("\\+", threat) ~ "additive",
+    TRUE ~ "single"
+  ))
+
+# Calculate the first derivative of the value over time for each threat and categorise them
+
+post_dydx_intvadd <- do.call("rbind", lapply(all_threats, function(x) {
+  out <- postdraws_intvadd %>%
+    subset(grepl(x, threat)) %>% #filter to focal threat
+    reframe(.value = mean(diff(.value) / diff(time)),
+            .by = c(combo_group, threat, .draw)) %>% #estimate each timeseries' first derivative
+    group_by(threat) %>%
+    #filter(!any(.value >= abs(0.5))) %>% #drop highly variable threats
+    ungroup() %>%
+    mutate(threat_group = x)
+  
+  return(out)
+}))
+
+# Extract distribution information for each threat, categorised by interaction type
+
+dydx_interval_intvadd <- post_dydx_intvadd %>%
+  group_by(threat_group, combo_group, threat) %>%
+  ggdist::median_qi(.width = c(.95, .8, .5), .exclude = c(".draw"))
+
+# Compare the difference in derivatives between shared additive and interactive threats
+
+post_intvadd_diff <- do.call("rbind", lapply(additive_cols[grepl("\\+", additive_cols)], function(x) {
+  ss <- post_dydx_intvadd %>%
+    subset(threat %in% c(x, gsub(" \\+ ", ".", x))) %>%
+    #reframe(.value = diff(c(.value[2], .value[1])), .by = c(threat_group, .draw)) %>%
+    reframe(.value = diff(c(.value[!grepl("[.]",threat)], .value[grepl("[.]",threat)])), .by = c(threat_group, .draw)) %>%
+    mutate(threats = gsub(" \\+ ", ".", x))
+}))
+
+# Finalize the comparison, drop missing values, and classify interaction types
+
+post_interval_intvadd_diff <- post_intvadd_diff %>%
+  na.omit() %>%
+  group_by(threat_group, threats) %>%
+  ggdist::median_qi(.width = c(.95, .8, .5), .exclude = c(".draw")) %>%
+  mutate(
+    interaction.type = factor(case_when(
+      .upper < 0 ~ "synergistic",
+      .lower > 0 ~ "antagonistic",
+      TRUE ~ "additive"
+    ),
+    levels = c("synergistic", "antagonistic", "additive"))
+  )
+
+diff <- post_intvadd_diff %>%
+  mutate(threats = gsub("invasive", "Invasive", threats),
+         threats = gsub("habitatl", "Habitat loss", threats),
+         threats = gsub("climatechange", "Climate change", threats),
+         threats = gsub("pollution", "Pollution", threats),
+         threats = gsub("exploitation", "Exploitation", threats),
+         threats = gsub("disease", "Disease", threats)) %>% 
+  drop_na() %>% 
+  arrange(.value)
+
+diff_int <- post_interval_intvadd_diff %>% 
+  mutate(threats = gsub("invasive", "Invasive", threats),
+         threats = gsub("habitatl", "Habitat loss", threats),
+         threats = gsub("climatechange", "Climate change", threats),
+         threats = gsub("pollution", "Pollution", threats),
+         threats = gsub("exploitation", "Exploitation", threats),
+         threats = gsub("disease", "Disease", threats))
+
+slab_data <- na.omit(post_intvadd_diff) %>%
+  merge(select(post_interval_intvadd_diff,-.value),
+        by = c("threat_group","threats")) %>%
+  subset(.width == 0.5) %>% 
+  mutate(threats = gsub("invasive", "Invasive", threats),
+         threats = gsub("habitatl", "Habitat loss", threats),
+         threats = gsub("climatechange", "Climate change", threats),
+         threats = gsub("pollution", "Pollution", threats),
+         threats = gsub("exploitation", "Exploitation", threats),
+         threats = gsub("disease", "Disease", threats))
+
+# Plot it 
+
+ggplot(data = diff, 
+       aes(x = .value, y=reorder(threats, -.value))) +
+  tidybayes::stat_slab(data = slab_data,
+                       aes(fill = interaction.type),alpha=0.5,normalize = "xy") +
+  ggdist::geom_pointinterval(data = diff_int,
+                             aes(xmin = .lower, xmax = .upper,col = interaction.type),alpha=0.5) +
+  geom_point(data = subset(diff_int,.width == 0.5), 
+             aes(x = .value,col = interaction.type,fill = interaction.type),shape = 21,alpha=0.5,size = 3) +
+  geom_vline(xintercept = 0, linetype = "dashed", colour="grey50") +
+  coord_cartesian(xlim = c(-0.25,0.25)) + 
+  scale_fill_manual(values = c("#1E63B3",
+                               "#694364",
+                               "#B32315"), name = "",
+                    guide = guide_legend(override.aes = list(color = NA,shape = 2) )) + 
+  scale_color_manual(values = c("#1E63B3",
+                               "#694364",
+                               "#B32315"), guide = "none") + 
+  #facet_wrap(~threat_group) + 
+  xlab( expression(paste("Additive ",Delta,"y","/",Delta,"x"," - interactive ",Delta,"y","/",Delta,"x"))) + 
+  ylab("Threat combination") +
+  theme(legend.position = "none")
+```
+
+\newpage
+
+```{r tableS5a}
+# Calculate the proportions
+
+tableS4 <- post_interval_intvadd_diff %>%
+  separate_rows(threats, sep = "\\.") %>%
+  mutate(interaction.type = factor(
+    interaction.type,
+    levels = c("synergistic", "antagonistic", "additive"),
+    labels = c("Synergistic", "Antagonistic", "Additive")
+  )) %>%
+  group_by(threats, interaction.type) %>%
+  summarise(n = n()) %>%
+  ungroup() %>%
+  complete(threats, interaction.type) %>%
+  group_by(threats) %>%
+  mutate(n = replace_na(n, 0), freq = (n / sum(n))) %>%
+  ungroup() %>%
+  mutate(threats = str_to_title(threats)) %>%
+  mutate(
+    threats = case_when(
+      threats %in% "Climatechange" ~ "Climate change",
+      threats %in% "Habitatl" ~ "Habitat loss",
+      TRUE ~ threats
+    )
+  ) %>%
+  setNames(c("Threat", "Interaction type", "n", "Frequency"))
+
+kable(tableS4 |> 
+        dplyr::mutate(Frequency = round(Frequency,digits = 3)), row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Proportion of threat interaction types estimated by the global model. n represents the number of interaction types present. Frequency represents the proportion of that given interaction type for that threat and system.") %>%
+   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
+```
+
+\newpage
+
+```{r fig5c, fig.height=6, fig.width=12, fig.cap="Spread of interactive effects across threats and taxa"}
+
+tableS6 <- lapply(seq_along(taxon_ls), function(mod) {
+  # Extract column names from the model
+  
+  threatcols <- colnames(taxon_ls[[mod]]$data)[grepl(paste(all_threats, collapse = "|"),
+                                                         colnames(taxon_ls[[mod]]$data))]
+  
+  # Generate additive combinations of threat columns (i.e., "threat1 + threat2")
+  
+  additive_cols <- do.call("c", lapply(strsplit(threatcols, "[.]"), function(x) {
+    paste(x, collapse = " + ")
+  }))
+  
+  # Combine original and additive columns into a unique set
+  
+  target_cols <- unique(c(threatcols, additive_cols))
+  
+  # Estimate posterior time series for each threat combination (singular, interactive, additive)
+  
+  postdraws_intvadd <- threat_post_draws(
+    model = taxon_ls[[mod]],
+    threat_comns = target_cols,
+    nuisance = c("series", "SpeciesName"),
+    n.cores = 4,
+    ndraws = 1000
+  ) %>%
+    mutate(combo_group = case_when(
+      grepl("[.]", threat) ~ "interactive",
+      grepl("\\+", threat) ~ "additive",
+      TRUE ~ "single"
+    ))
+  
+  # Calculate the first derivative of the value over time for each threat and categorise them
+  
+  post_dydx_intvadd <- do.call("rbind", lapply(all_threats, function(x) {
+    out <- postdraws_intvadd %>%
+      subset(grepl(x, threat)) %>% #filter to focal threat
+      reframe(.value = mean(diff(.value) / diff(time)),
+              .by = c(combo_group, threat, .draw)) %>% #estimate each timeseries' first derivative
+      group_by(threat) %>%
+      #filter(!any(.value >= abs(0.5))) %>% #drop highly variable threats
+      ungroup() %>%
+      mutate(threat_group = x)
+    
+    return(out)
+  }))
+  
+  # Extract distribution information for each threat, categorised by interaction type
+  
+  dydx_interval_intvadd <- post_dydx_intvadd %>%
+    group_by(threat_group, combo_group, threat) %>%
+    ggdist::median_qi(.width = c(.95, .8, .5),
+                      .exclude = c(".draw"))
+  
+  # Compare the difference in derivatives between shared additive and interactive threats
+  
+  post_intvadd_diff <- do.call("rbind", lapply(additive_cols[grepl("\\+", additive_cols)], function(x) {
+    ss <- post_dydx_intvadd %>%
+      subset(threat %in% c(x, gsub(" \\+ ", ".", x))) %>%
+      # reframe(.value = diff(c(.value[2], .value[1])),
+      #         .by = c(threat_group, .draw)) %>%
+    reframe(.value = diff(c(.value[!grepl("[.]",threat)], .value[grepl("[.]",threat)])), .by = c(threat_group, .draw)) %>%
+      mutate(threats = gsub(" \\+ ", ".", x))
+  }))
+  
+  # Finalize the comparison, drop missing values, and classify interaction types
+  
+  post_interval_intvadd_diff <- post_intvadd_diff %>%
+    na.omit() %>%
+    group_by(threat_group, threats) %>%
+    ggdist::median_qi(.width = c(.95, .8, .5),
+                      .exclude = c(".draw")) %>%
+    mutate(
+      interaction.type = factor(case_when(
+        .upper < 0 ~ "synergistic",
+        .lower > 0 ~ "antagonistic",
+        TRUE ~ "additive"
+      ),
+      levels = c("synergistic", "antagonistic", "additive"))
+    )
+  
+  # Calculate the proportions
+  
+  data_ad <- post_interval_intvadd_diff %>%
+    separate_rows(threats, sep = "\\.") %>%
+    mutate(interaction.type = factor(
+      interaction.type,
+      levels = c("synergistic", "antagonistic", "additive"),
+      labels = c("Synergistic", "Antagonistic", "Additive")
+    )) %>%
+    group_by(threats, interaction.type) %>%
+    summarise(n = n()) %>%
+    ungroup() %>%
+    complete(threats, interaction.type) %>%
+    group_by(threats) %>%
+    mutate(n = replace_na(n, 0), freq = (n / sum(n))) %>%
+    ungroup() %>%
+    mutate(threats = str_to_title(threats)) %>%
+    mutate(
+      threats = case_when(
+        threats %in% "Climatechange" ~ "Climate change",
+        threats %in% "Habitatl" ~ "Habitat loss",
+        TRUE ~ threats
+      )
+    ) %>%
+    setNames(c("Threat", "Interaction type", "n", "Frequency")) %>%
+    add_column(Taxon = names(taxon_ls)[[mod]], .after = "Threat")
+  
+  return(data_ad)
+}) %>%
+  bind_rows() %>%
+  arrange(Threat, Taxon)  %>%
+  complete(Threat,Taxon,`Interaction type`) 
+
+taxon_legend <- cowplot::get_plot_component(
+  tableS6 %>%
+  mutate(`Interaction type` = forcats::fct_expand(`Interaction type`,"No data")) %>%
+  mutate(`Interaction type` = if_else(is.na(Frequency),"No data",`Interaction type`)) %>%
+  mutate(Frequency = ifelse(is.na(Frequency),0,Frequency))%>%
+    mutate(Frequency = ifelse(Frequency == 0, 1, Frequency)) %>%
+    ggplot(aes(fill = `Interaction type`, values =
+                 Frequency)) +
+    geom_waffle(
+      color = "white",
+      size = .25,
+      n_rows = 10,
+      flip = TRUE,
+      na.rm = F,
+      make_proportional = T,
+      show.legend = TRUE
+    ) +
+    facet_grid(Threat ~ Taxon) +
+    scale_x_discrete() +
+    scale_y_continuous(
+      labels = function(x)
+        x * 10,
+      # make this multiplyer the same as n_rows
+      expand = c(0, 0)
+    ) +
+    scale_fill_manual(
+      name = NULL,
+      values = c(
+      "Additive" = "#694364",
+      "Antagonistic" = "#1E63B3",
+      "Synergistic" = "#B32315",
+     "No data" = "white"
+    )
+    ) +
+    coord_equal(clip = "off") +
+    theme_void() +
+    theme(
+      legend.position = "top",
+      legend.text = element_text(size =
+                                   12),
+      strip.text = element_text(size =
+                                  14),
+      plot.margin = margin(-10, 0, -10, 0)
+    ),
+  'guide-box-top',
+  return_all = TRUE
+)
+
+# Make the plot
+
+  taxon_waffle <- tableS6 %>%
+  mutate(`Interaction type` = forcats::fct_expand(`Interaction type`,"No data")) %>%
+  mutate(`Interaction type` = if_else(is.na(Frequency),"No data",`Interaction type`)) %>%
+    mutate(Frequency = ifelse(is.na(Frequency),0,Frequency)) %>%
+    mutate(Frequency = ifelse(Frequency == 0, 0.0000000001, Frequency)) %>%
+    ggplot(aes(fill = `Interaction type`, values = Frequency)) +
+    geom_waffle(
+      color = "white",
+      size = .25,
+      n_rows = 10,
+      flip = TRUE,
+      na.rm = F,
+      make_proportional = T,
+      show.legend = TRUE
+    ) +
+    facet_grid(Threat ~ Taxon) +
+    scale_x_discrete() +
+    scale_y_continuous(
+      labels = function(x)
+        x * 10,
+      # make this multiplyer the same as n_rows
+      expand = c(0, 0)
+    ) +
+    scale_fill_manual(name = NULL, values = c(
+      "Additive" = "#694364",
+      "Antagonistic" = "#1E63B3",
+      "Synergistic" = "#B32315",
+     "No data" = "white"
+    )) +
+    coord_equal(clip = "off") +
+    theme_void() +
+    theme(
+      legend.position = "none",
+      legend.text = element_text(size = 12),
+      strip.text = element_text(size = 14),
+      plot.margin = margin(0, 0, 0, 0)
+    )
+
+taxon_waffle / taxon_legend + plot_layout(heights = c(1, .1))
+
+```
+
+\newpage
+
+```{r tableS5c}
+
+kable(tableS6 |> 
+        dplyr::mutate(Frequency = round(Frequency,digits = 3)), row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Proportion of threat interaction types across taxa. n represents the number of interaction types present. Frequency represents the proportion of that given interaction type for that threat and taxa") %>%
+   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
+```
+
+\newpage
+
+```{r fig5b, fig.height=7, fig.width=8, fig.cap="Spread of interactive effects across threats and systems."}
+
+tableS5 <- lapply(seq_along(system_ls), function(mod) {
+  # Extract column names from the model
+  
+  threatcols <- colnames(system_ls[[mod]]$data)[grepl(paste(all_threats, collapse = "|"),
+                                                         colnames(system_ls[[mod]]$data))]
+  
+  # Generate additive combinations of threat columns (i.e., "threat1 + threat2")
+  
+  additive_cols <- do.call("c", lapply(strsplit(threatcols, "[.]"), function(x) {
+    paste(x, collapse = " + ")
+  }))
+  
+  # Combine original and additive columns into a unique set
+  
+  target_cols <- unique(c(threatcols, additive_cols))
+  
+  # Estimate posterior time series for each threat combination (singular, interactive, additive)
+  
+  postdraws_intvadd <- threat_post_draws(
+    model = system_ls[[mod]],
+    threat_comns = target_cols,
+    nuisance = c("series", "SpeciesName"),
+    n.cores = 4,
+    ndraws = 1000
+  ) %>%
+    mutate(combo_group = case_when(
+      grepl("[.]", threat) ~ "interactive",
+      grepl("\\+", threat) ~ "additive",
+      TRUE ~ "single"
+    ))
+  
+  # Calculate the first derivative of the value over time for each threat and categorise them
+  
+  post_dydx_intvadd <- do.call("rbind", lapply(all_threats, function(x) {
+    out <- postdraws_intvadd %>%
+      subset(grepl(x, threat)) %>% #filter to focal threat
+      reframe(.value = mean(diff(.value) / diff(time)),
+              .by = c(combo_group, threat, .draw)) %>% #estimate each timeseries' first derivative
+      group_by(threat) %>%
+      #filter(!any(.value >= abs(0.5))) %>% #drop highly variable threats
+      ungroup() %>%
+      mutate(threat_group = x)
+    
+    return(out)
+  }))
+  
+  # Extract distribution information for each threat, categorised by interaction type
+  
+  dydx_interval_intvadd <- post_dydx_intvadd %>%
+    group_by(threat_group, combo_group, threat) %>%
+    ggdist::median_qi(.width = c(.95, .8, .5),
+                      .exclude = c(".draw"))
+  
+  # Compare the difference in derivatives between shared additive and interactive threats
+  
+  post_intvadd_diff <- do.call("rbind", lapply(additive_cols[grepl("\\+", additive_cols)], function(x) {
+    ss <- post_dydx_intvadd %>%
+      subset(threat %in% c(x, gsub(" \\+ ", ".", x))) %>%
+      # reframe(.value = diff(c(.value[2], .value[1])),
+      #         .by = c(threat_group, .draw)) %>%
+    reframe(.value = diff(c(.value[!grepl("[.]",threat)], .value[grepl("[.]",threat)])), .by = c(threat_group, .draw)) %>%
+      mutate(threats = gsub(" \\+ ", ".", x))
+  }))
+  
+  # Finalize the comparison, drop missing values, and classify interaction types
+  
+  post_interval_intvadd_diff <- post_intvadd_diff %>%
+    na.omit() %>%
+    group_by(threat_group, threats) %>%
+    ggdist::median_qi(.width = c(.95, .8, .5),
+                      .exclude = c(".draw")) %>%
+    mutate(
+      interaction.type = factor(case_when(
+        .upper < 0 ~ "synergistic",
+        .lower > 0 ~ "antagonistic",
+        TRUE ~ "additive"
+      ),
+      levels = c("synergistic", "antagonistic", "additive"))
+    )
+  
+  # Calculate the proportions
+  
+  data_ad <- post_interval_intvadd_diff %>%
+    separate_rows(threats, sep = "\\.") %>%
+    mutate(interaction.type = factor(
+      interaction.type,
+      levels = c("synergistic", "antagonistic", "additive"),
+      labels = c("Synergistic", "Antagonistic", "Additive")
+    )) %>%
+    group_by(threats, interaction.type) %>%
+    summarise(n = n()) %>%
+    ungroup() %>%
+    complete(threats, interaction.type) %>%
+    group_by(threats) %>%
+    mutate(n = replace_na(n, 0), freq = (n / sum(n))) %>%
+    ungroup() %>%
+    mutate(threats = str_to_title(threats)) %>%
+    mutate(
+      threats = case_when(
+        threats %in% "Climatechange" ~ "Climate change",
+        threats %in% "Habitatl" ~ "Habitat loss",
+        TRUE ~ threats
+      )
+    ) %>%
+    setNames(c("Threat", "Interaction type", "n", "Frequency")) %>%
+    add_column(System = names(system_ls)[[mod]], .after = "Threat")
+  
+  return(data_ad)
+  
+}) %>%
+  bind_rows() %>%
+  arrange(Threat, System)
+
+system_legend <- cowplot::get_plot_component(
+  tableS5 %>%
+    mutate(Frequency = ifelse(Frequency == 0, 1, Frequency)) %>%
+    ggplot(aes(fill = `Interaction type`, values =
+                 Frequency)) +
+    geom_waffle(
+      color = "white",
+      size = .25,
+      n_rows = 10,
+      flip = TRUE,
+      na.rm = F,
+      make_proportional = T,
+      show.legend = TRUE
+    ) +
+    facet_grid(Threat ~ System) +
+    scale_x_discrete() +
+    scale_y_continuous(
+      labels = function(x)
+        x * 10,
+      # make this multiplyer the same as n_rows
+      expand = c(0, 0)
+    ) +
+    scale_fill_manual(
+      name = NULL,
+      values = c(
+      "Additive" = "#694364",
+      "Antagonistic" = "#1E63B3",
+      "Synergistic" = "#B32315"
+    )
+    ) +
+    coord_equal(clip = "off") +
+    theme_void() +
+    theme(
+      legend.position = "top",
+      legend.text = element_text(size =
+                                   12),
+      strip.text = element_text(size =
+                                  14),
+      plot.margin = margin(-10, 0, -10, 0)
+    ),
+  'guide-box-top',
+  return_all = TRUE
+)
+
+# Make the plot
+
+  system_waffle <- tableS5 %>%
+    ggplot(aes(fill = `Interaction type`, values = Frequency)) +
+    geom_waffle(
+      color = "white",
+      size = .25,
+      n_rows = 10,
+      flip = TRUE,
+      na.rm = F,
+      make_proportional = T,
+      show.legend = TRUE
+    ) +
+    facet_grid(Threat ~ System) +
+    scale_x_discrete() +
+    scale_y_continuous(
+      labels = function(x)
+        x * 10,
+      # make this multiplyer the same as n_rows
+      expand = c(0, 0)
+    ) +
+    scale_fill_manual(name = NULL, values = c(
+      "Additive" = "#694364",
+      "Antagonistic" = "#1E63B3",
+      "Synergistic" = "#B32315"
+    )) +
+    coord_equal(clip = "off") +
+    theme_void() +
+    theme(
+      legend.position = "none",
+      legend.text = element_text(size = 12),
+      strip.text = element_text(size = 14),
+      plot.margin = margin(0, 0, 0, 0)
+    )
+
+system_waffle / system_legend + plot_layout(heights = c(1, .1))
+
+```
+
+\newpage
+
+```{r tableS5b}
+kable(tableS5 |> 
+        dplyr::mutate(Frequency = round(Frequency,digits = 3)), row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Proportion of threat interaction types across systems. n represents the number of interaction types present. Frequency represents the proportion of that given interaction type for that threat and system.") %>%
+   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
+```
+
+\newpage
+
+```{r figS6a, fig.height=12, fig.width=14, messages = FALSE,fig.cap="The counterfactual scenarios for multiple threats. The counterfactual scenarios represent the changes in the population trends of the 1,740 vertebrate time-series affected by threats, had there been different combinations of multiple threats. (a) Scenarios representing the global vertebrate population growth where different combinations of two threats were removed. (b) Scenarios representing the global vertebrate population growth where three threats were removed. The black line represents when the population trend is 0. The dotted line is the median trend of the threatened populations without any of the counterfactual scenarios."}
+# create a vector with all the threats in the dataset
+
+threat_cols <-  colnames(mod_glob$data)[grepl(paste(c("pollution","habitatl",
+                                                "climatechange","invasive", 
+                                                "exploitation","disease"),
+                                              collapse = "|"),
+                                        colnames(mod_glob$data))]
+
+
+# Predict the population trends in the "no intervention" scenario
+
+pop_perd <- brms::posterior_epred(mod_glob,
+                                  newdata = mod_glob$data %>% 
+                                    filter_at(threat_cols, any_vars(. != "0")),
+                                  re.form = NULL,
+                                  incl_autocor = FALSE,
+                                  sort = TRUE, 
+                                  ndraws = 1000) %>% 
+  as.data.frame() %>%
+  mutate(.draw = 1:NROW(.)) %>%
+  #extract posterior draws for the data used to create the model
+  pivot_longer(-.draw,names_to = "index",values_to = ".value") %>%
+  cbind(mod_glob$data %>%
+          filter_at(threat_cols, any_vars(. != "0")) %>% 
+          dplyr::select(series, time), row.names = NULL) %>% 
+  reframe(.value = mean(diff(.value)/diff(time)),.by = c(series,.draw)) %>% 
+  mutate(counterfac="none") %>% 
+  reframe(mn = mean(.value), .by=c(series, counterfac))
+
+# Create the counterfactual for all the threats
+
+# We use the function counterfactual draws to estimate the different population 
+# trends under the different scenarios removing the threats
+
+counter_all <- threat_counterfac_draws(mod_glob,
+                                       threat_comns = paste(c("pollution","habitatl",
+                                                              "climatechange","invasive", 
+                                                              "exploitation","disease"),
+                                                            collapse = "."),
+                                       re.form = NULL,
+                                       ndraws = 1000,
+                                       center_dydx = "mean",
+                                       n.cores = 4, trend=T) %>% 
+  mutate(counterfac="All")
+  
+
+# Create the different counterfactual scenarios
+
+# We use the function counterfactual draws to estimate the different population 
+# trends under the different scenarios removing one threat
+
+counter_fac_data <- threat_counterfac_draws(mod_glob,
+                                            threat_comns = threat_cols,
+                                            re.form = NULL,
+                                            ndraws = 1000,
+                                            center_dydx = "mean",
+                                            n.cores = 4, trend=T) %>%
+  # Join with the none counterfactual scenario that we just created
+  rbind(pop_perd, counter_all) %>%
+  # Made "none" as the first level of the counterfactual 
+  mutate(counterfac = fct_relevel(counterfac, "none"))
+
+# We summarise it 
+
+scenarios_mean <- counter_fac_data %>% 
+  group_by(counterfac) %>% 
+  summarise(m=median(mn)) %>% 
+  arrange(desc(m))
+
+# Plots ------------------------------------------------------------------------
+
+# Create a palette
+
+threat_palette<-c(MetBrewer::met.brewer(name="Hokusai1", n=6, type="continuous"))
+
+palette <- data.frame(counterfac = c("No pollution","No habitat loss", 
+                                     "No climate change", "No invasive", 
+                                     "No exploitation", "No disease", "All"),
+                      fill_col = as.factor(c(threat_palette, "grey50")))
+
+p2 <- counter_fac_data %>% 
+    # add a variable counting the number of threats
+    mutate(number=str_count(counterfac, '\\.')+1,
+           counterfac = gsub("habitatl", "habitat loss", counterfac),
+           counterfac = gsub("climatechange", "climate change", counterfac)) %>%
+    group_by(counterfac) %>% 
+    mutate(pos=median(mn)) %>% 
+    ungroup() %>%   
+    filter(number==2) %>% 
+    # Start the plot
+    ggplot(aes(x = mn,
+               y=reorder(counterfac, pos),
+               fill=counterfac, colour=counterfac)) +
+   stat_density_ridges(quantile_lines = TRUE, quantiles = 2,
+                       scale = 1,vline_size = 1.3,
+                       rel_min_height = 0.01,
+                       bandwidth = 0.01, alpha=.5) +
+    scale_fill_manual(values=MetBrewer::met.brewer(name="Tiepolo", n=15, type="continuous"))+
+    scale_colour_manual(values=MetBrewer::met.brewer(name="Tiepolo", n=15, type="continuous"))+
+    geom_vline(xintercept = 0,
+               linetype = "solid", 
+               colour="grey50",linewidth=1) +
+    geom_vline(xintercept = subset(scenarios_mean,counterfac == "none")$m,
+               linetype = "dashed", 
+               colour="grey50",linewidth=1) +
+    xlab(expression(paste("Population trend (",Delta,"y","/",Delta,"x)"))) + 
+    ylab("Counterfactual") +
+    coord_cartesian(xlim = c(-0.2,0.2))+
+    theme_minimal()+
+    theme(axis.title.x = element_text(size=12,
+                                      margin = margin(t = 10, r = 0, b = 0, l = 0)), 
+          axis.title.y = element_text(size=12,
+                                      margin = margin(t = 0, r = 10, b = 0, l = 0)),
+          axis.line.x = element_line(color="black", linewidth = 0.5),
+          axis.line.y = element_line(color="black", linewidth = 0.5),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          axis.text.x = element_text(color="black", size = 12),
+          axis.text.y = element_text(color="black", size = 12),
+          strip.text.x = element_text(size = 12),
+          axis.ticks = element_line(color="black"),
+          plot.title = element_text(hjust = 0.5),
+          legend.position = "none")
+
+## Three threats scenarios -----------------------------------------------------
+
+p3 <- counter_fac_data %>% 
+    # add a variable counting the number of threats
+    mutate(number=str_count(counterfac, '\\.')+1,
+           counterfac = gsub("habitatl", "habitat loss", counterfac),
+           counterfac = gsub("climatechange", "climate change", counterfac)) %>%
+    group_by(counterfac) %>% 
+    mutate(pos=median(mn)) %>% 
+    ungroup() %>%   
+    filter(number==3) %>% 
+    # Start the plot
+    ggplot(aes(x = mn,
+               y=reorder(counterfac, pos),
+               fill=counterfac, 
+               colour=counterfac)) +
+   stat_density_ridges(quantile_lines = TRUE, quantiles = 2,
+                       scale = 1,vline_size = 1.3,
+                       rel_min_height = 0.01,
+                       bandwidth = 0.01, alpha=.5) +
+    scale_fill_manual(values=MetBrewer::met.brewer(name="Nattier", n=18, type="continuous"))+
+    scale_colour_manual(values=MetBrewer::met.brewer(name="Nattier", n=18, type="continuous"))+
+    # geom_boxplot(outlier.shape = NA)+
+    # tidybayes::stat_halfeye(aes(group = counterfac)) +
+   geom_vline(xintercept = 0,
+              linetype = "solid", 
+              colour="grey50",linewidth=1) +
+   geom_vline(xintercept = subset(scenarios_mean,counterfac == "none")$m,
+              linetype = "dashed", 
+              colour="grey50",linewidth=1) +
+   xlab(expression(paste("Population trend (",Delta,"y","/",Delta,"x)"))) + 
+    ylab("") +
+    coord_cartesian(xlim = c(-0.2,0.2))+
+    theme_minimal()+
+    theme(axis.title.x = element_text(size=12,
+                                      margin = margin(t = 10, r = 0, b = 0, l = 0)), 
+          axis.title.y = element_text(size=12,
+                                      margin = margin(t = 0, r = 10, b = 0, l = 0)),
+          axis.line.x = element_line(color="black", linewidth = 0.5),
+          axis.line.y = element_line(color="black", linewidth = 0.5),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          axis.text.x = element_text(color="black", size = 12),
+          axis.text.y = element_text(color="black", size = 12),
+          strip.text.x = element_text(size = 12),
+          axis.ticks = element_line(color="black"),
+          plot.title = element_text(hjust = 0.5),
+          legend.position = "none")
+
+# Combine it
+
+p2 + p3 +
+    plot_annotation(tag_levels = c('a'))
+
+```
+
+\newpage
+
+```{r fig4a,fig.height=12, fig.width=14, messages = FALSE,fig.cap="Influence of time series length on the relationship between threats and Living Planet Database trends. (a-c) Model estimates for time series containing 10 years of data. (d-f) Model estimates for time series containing 20 years of data."}
+model_ls_sens <- list(mod_glob20, mod_glob40) %>%
+  setNames(c("20","40"))
+
+sensitivity_fig2 <- lapply(model_ls_sens, function(mod) {
+  coefs_df <- mod %>%
+    gather_draws(`b_scaled_year.*`, regex = TRUE) %>%
+    mutate(
+      .variable = gsub("b_", "", .variable),
+      .variable = gsub("scaled_year:", "", .variable),
+      .variable = gsub("invasive", "Invasive", .variable),
+      .variable = gsub("habitatl", "Habitat loss", .variable),
+      .variable = gsub("climatechange", "Climate change", .variable),
+      .variable = gsub("pollution", "Pollution", .variable),
+      .variable = gsub("exploitation", "Exploitation", .variable),
+      .variable = gsub("disease", "Disease", .variable),
+      .variable = gsub("scaled_year", "None", .variable),
+      .variable = gsub(" 1", "", .variable)
+    )
+  
+  
+  # Obtain the coeficients for each threat group
+  
+  coefs_group <- do.call("rbind", lapply(c(
+    "None",
+    "Pollution",
+    "Habitat loss",
+    "Climate change",
+    "Invasive",
+    "Exploitation",
+    "Disease"
+  ), function(x) {
+    out <- coefs_df %>%
+      subset(grepl(x, .variable)) %>% # Filter to the current threat
+      mutate(
+        int_group = ifelse(grepl("\\.", .variable), "Interactive", "Singular"),
+        # Classify threats as 'singular' or 'interactive'
+        threat_group = x
+      ) %>% # Assign the current threat to a grouping variable
+      ungroup()
+    return(out)
+  }))
+  
+  # Calculate median and quantile intervals for the rate of change by threat group and interaction type
+  
+  coefs_interval <- coefs_group  %>%
+    group_by(threat_group, int_group) %>%
+    ggdist::median_qi(
+      .width = c(.95, .8, .5),
+      .exclude = c(".chain", ".iteration", ".draw", ".variable")
+    ) %>%
+    mutate(
+      int_group = ifelse(int_group == "Singular", "Singular", "Interactive"),
+      int = ordered(int_group, c("Singular", "Interactive"))
+    )
+  
+  # Create a data frame matching threat groups to colors
+  
+  palette <- data.frame(
+    threat_group = unique(coefs_group$threat_group),
+    fill_col = c("grey50", threat_palette)
+  )
+  
+  # Prepare the data for Panel A by joining with the palette and adjusting factors
+  
+  plot_coefs <- coefs_group %>%
+    left_join(palette, by = "threat_group") %>%
+    mutate(fill_col = factor(fill_col),
+           int = ordered(int_group, c("Singular", "Interactive")))
+  
+  g2a <- plot_coefs %>%
+    ggplot(aes(x = .value, y = reorder(threat_group, .value))) +
+    tidybayes::stat_slab(
+      data = plot_coefs %>%
+        filter(int_group == "Singular"),
+      aes(fill = fill_col, group = .variable),
+      alpha = 0.5,
+      normalize = "groups"
+    ) +
+    tidybayes::stat_slab(
+      data = subset(plot_coefs, int_group == "Interactive"),
+      aes(fill = fill_col, group = .variable),
+      alpha = 0.5,
+      normalize = "panels"
+    ) +
+    ggdist::geom_pointinterval(data = coefs_interval,
+                               aes(xmin = .lower, xmax = .upper),
+                               position = position_dodge()) +
+    geom_vline(xintercept = 0,
+               linetype = "dashed",
+               colour = "grey50") +
+    labs(x = "Effect on population trends", y = NULL) +
+    coord_cartesian(xlim = c(-0.1, 0.1)) +
+    scale_x_continuous(breaks = seq(-0.1, 0.1, by = 0.1)) +
+    facet_wrap(~ int) +
+    ylab("") +
+    scale_fill_manual(values = levels(plot_coefs$fill_col), guide = "none") +
+    scale_color_manual(values = levels(plot_coefs$fill_col), guide = "none") +
+    theme(axis.title.y = element_blank())
+  
+  # Identify the colnames for the threats
+  
+  threat_cols <-  colnames(mod$data)[grepl(paste(
+    c(
+      "pollution",
+      "habitatl",
+      "climatechange",
+      "invasive",
+      "exploitation",
+      "disease"
+    ),
+    collapse = "|"
+  ), colnames(mod$data))]
+  
+  # Get the interaction data
+  
+  int_dat <- mod$data %>%
+    mutate(int_present = if_any(threat_cols, ~ .x == "1", TRUE),
+           y_centered = NA)
+  
+  # Generate the null data
+  
+  null_dat <- int_dat %>%
+    mutate(across(all_of(threat_cols), ~ factor("0", levels = c("0", "1"))))
+  
+  # Base predictions
+  
+  base_pred <- brms::posterior_epred(
+    mod,
+    newdata = null_dat,
+    re.form = NA,
+    incl_autocor = F,
+    sort = TRUE,
+    ndraws = 1000
+  ) %>% #extract posterior draws for the above data grid
+    as.data.frame() %>%
+    mutate(.draw = 1:NROW(.)) %>%
+    #extract posterior draws for the data used to create the model
+    pivot_longer(-.draw, names_to = "index", values_to = ".value") %>%
+    cbind(null_dat %>% dplyr::select(series, time, int_present),
+          row.names = NULL) %>%
+    # reframe(.value = mean(.value/lag(.value)),
+    #         .by = c(series,.draw,int_present)) %>% #estimate derivatives per series and .draw
+    reframe(.value = mean(diff(.value) / diff(time)),
+            .by = c(series, .draw, int_present)) %>% #estimate derivatives per series and .draw
+    reframe(.value = mean(.value),
+            .by = c(series, int_present)) #estimate average derivative per series
+  
+  # Random effects
+  
+  space_pred <- brms::posterior_epred(
+    mod,
+    newdata = null_dat,
+    re.form = NULL,
+    incl_autocor = F,
+    sort = TRUE,
+    ndraws = 1000
+  ) %>% #extract posterior draws for the above data grid
+    as.data.frame() %>%
+    mutate(.draw = 1:NROW(.)) %>%
+    #extract posterior draws for the data used to create the model
+    pivot_longer(-.draw, names_to = "index", values_to = ".value") %>%
+    cbind(null_dat %>% dplyr::select(series, time, int_present),
+          row.names = NULL) %>%
+    # reframe(.value = mean(.value/lag(.value)),
+    #         .by = c(series,.draw,int_present)) %>% #estimate derivatives per series and .draw
+    reframe(.value = mean(diff(.value) / diff(time)),
+            .by = c(series, .draw, int_present)) %>% #estimate derivatives per series and .draw
+    reframe(.value = mean(.value),
+            .by = c(series, int_present)) #estimate average derivative per series
+  
+  # Predictions with interactive effects on
+  
+  inter_pred <- brms::posterior_epred(
+    mod,
+    newdata = int_dat,
+    re.form = NA,
+    incl_autocor = F,
+    sort = TRUE,
+    ndraws = 1000
+  ) %>% #extract posterior draws for the above data grid
+    as.data.frame() %>%
+    mutate(.draw = 1:NROW(.)) %>%
+    #extract posterior draws for the data used to create the model
+    pivot_longer(-.draw, names_to = "index", values_to = ".value") %>%
+    cbind(null_dat %>% dplyr::select(series, time, int_present),
+          row.names = NULL) %>%
+    # reframe(.value = mean(.value/lag(.value)),
+    #        .by = c(series,.draw,int_present)) %>% #estimate derivatives per series and .draw
+    reframe(.value = mean(diff(.value) / diff(time)),
+            .by = c(series, .draw, int_present)) %>% #estimate derivatives per series and .draw
+    reframe(.value = mean(.value),
+            .by = c(series, int_present)) #estimate average derivative per series
+  
+  # Calculate the differences
+  
+  inter_diff <- rbind(base_pred, inter_pred) %>%
+    reframe(beta = diff(.value),
+            .by = c(series, int_present)) %>%
+    mutate(type = "Interactive effects")
+  
+  space_diff <- rbind(base_pred, space_pred) %>%
+    reframe(beta = diff(.value),
+            .by = c(series, int_present)) %>%
+    mutate(type = "Random effects")
+  
+  # Join them
+  
+  diff <- rbind(inter_diff, space_diff) %>%
+    filter(int_present == TRUE)
+  
+  # Calculate median and quantile intervals for the rate of change by threat group and interaction type
+  
+  diff_interval <- diff  %>%
+    group_by(type) %>%
+    ggdist::median_qi(
+      .width = c(.95, .8, .5),
+      .exclude = c("series", "int_present", "type")
+    )
+  
+  # Plot panel b
+  g2b <- diff %>%
+    ggplot(aes(x = beta, y = type, fill = type)) +
+    ggdist::stat_slab(.width = c(0.6, 0.8, 0.95), alpha = .9) +
+    ggdist::geom_pointinterval(data = diff_interval,
+                               aes(xmin = .lower, xmax = .upper),
+                               position = position_dodge()) +
+    geom_vline(aes(xintercept = 0),
+               linetype = "dashed",
+               colour = "grey50") +
+    scale_fill_manual("", values = c("#739EF0", "#F0C873")) +
+    labs(x = "Trend difference", y = "") +
+    #xlim(-.3,.3)+
+    coord_cartesian(xlim = c(-0.1, 0.1)) +
+    scale_x_continuous(breaks = seq(-0.2, 0.2, by = 0.1)) +
+    theme(legend.position = "none")
+  
+  # The threats to project
+  
+  threats_col <-  colnames(mod$data)[grepl(paste(
+    c(
+      "pollution",
+      "habitatl",
+      "climatechange",
+      "invasive",
+      "exploitation",
+      "disease"
+    ),
+    collapse = "|"
+  ), colnames(mod$data))]
+  # Project the population
+  
+  postdraws <- threat_post_draws(
+    model = mod,
+    threat_comns = c("none", threats_col),
+    ndraws = 1000,
+    nuisance = c("series", "SpeciesName"),
+    n.cores = 4
+  )
+  
+  # Calculate the derivative
+  
+  post_proj <- do.call("rbind", lapply(c(
+    "none",
+    "pollution",
+    "habitatl",
+    "climatechange",
+    "invasive",
+    "exploitation",
+    "disease"
+  ), function(x) {
+    out <- postdraws %>%
+      subset(grepl(x, threat)) %>% # Filter to the current threat
+      reframe(.value = mean(diff(.value) / diff(time)),
+              .by = c(threat, .draw)) %>% # Calculate the first derivative (rate of change) for each time series
+      ungroup() %>%
+      mutate(int_group = ifelse(grepl("\\.", threat), "combined", "single")) %>% # Classify threats as 'single' or 'combined'
+      mutate(threat_group = x) %>% # Assign the current threat to a grouping variable
+      # Rename threat groups for clarity
+      mutate(
+        threat_group = gsub("invasive", "Invasive", threat_group),
+        threat_group = gsub("habitatl", "Habitat\nloss", threat_group),
+        threat_group = gsub("climatechange", "Climate\nchange", threat_group),
+        threat_group = gsub("pollution", "Pollution", threat_group),
+        threat_group = gsub("exploitation", "Exploitation", threat_group),
+        threat_group = gsub("disease", "Disease", threat_group),
+        threat_group = gsub("none", "None", threat_group)
+      ) %>%
+      group_by(threat) %>%
+      ungroup()
+    return(out)
+  }))
+  
+  # Calculate median and quantile intervals for the rate of change by threat group and interaction type
+  
+  dydx_interval <- post_proj  %>%
+    group_by(threat_group, int_group) %>%
+    ggdist::median_qi(
+      .width = c(.95, .8, .5),
+      .exclude = c(".draw", "threat", "threat_group")
+    ) %>%
+    mutate(
+      int_group = ifelse(int_group == "single", "Singular", "Interactive"),
+      int = ordered(int_group, c("Singular", "Interactive"))
+    )
+  
+  # Create a data frame matching threat groups to colors
+  
+  palette <- data.frame(
+    threat_group = unique(post_proj$threat_group),
+    fill_col = c("grey50", threat_palette)
+  )
+  
+  # Prepare the data for Panel C by joining with the palette and adjusting factors
+  
+  plot_dydx_threats <- post_proj %>%
+    left_join(palette, by = "threat_group") %>%
+    mutate(
+      fill_col = factor(fill_col),
+      int_group = ifelse(int_group == "single", "Singular", "Interactive"),
+      int = ordered(int_group, c("Singular", "Interactive"))
+    )
+  
+  g2c <- ggplot(data = plot_dydx_threats, aes(y = .value, x = reorder(threat_group, desc(.value)))) +
+    ggdist::stat_halfeye(
+      data = plot_dydx_threats %>%
+        filter(int_group == "Singular"),
+      aes(fill = fill_col, group = threat_group),
+      alpha = 0.5,
+      adjust = .5,
+      width = .3,
+      .width = 0,
+      justification = -.5,
+      point_colour = NA
+    ) +
+    geom_boxplot(
+      data = plot_dydx_threats %>%
+        filter(int_group == "Singular"),
+      aes(fill = fill_col, group = threat_group),
+      width = .2,
+      outliers = F,
+      alpha = .7
+    ) +
+    ggdist::stat_halfeye(
+      data = plot_dydx_threats %>%
+        filter(int_group == "Interactive"),
+      aes(fill = fill_col, group = threat),
+      alpha = 0.5,
+      adjust = .5,
+      width = .3,
+      .width = 0,
+      justification = -.5,
+      point_colour = NA
+    ) +
+    geom_boxplot(
+      data = plot_dydx_threats %>%
+        filter(int_group == "Interactive"),
+      aes(fill = fill_col, group = threat_group),
+      width = .2,
+      outliers = F,
+      alpha = .7
+    ) +
+    geom_hline(yintercept = 0,
+               linetype = "dashed",
+               colour = "grey50") +
+    facet_wrap( ~ int) +
+    ylab(expression(paste(
+      "Population trend (", Delta, "y", "/", Delta, "x)"
+    ))) +
+    xlab("") +
+    facet_wrap( ~ int, scales = "free") +
+    scale_fill_manual(values = levels(plot_dydx_threats$fill_col),
+                      guide = "none") +
+    coord_cartesian(ylim = c(-0.1, 0.1)) +
+    theme(#plot.margin = unit(c(0, 0.5, 0, .5), "cm"),
+          axis.title.x = element_blank())
+  
+  return(list(g2a,g2b,g2c))
+}) |>
+do.call("c",args = _)
+
+layout <- "
+  AAABB
+  CCCCC
+  DDDEE
+  FFFFF
+  "
+
+wrap_plots(sensitivity_fig2) +
+  plot_layout(design = layout, widths = 1, heights = c(1,0.5,1,0.5)) +
+  plot_annotation(tag_levels = "a") &
+  theme(plot.tag = element_text(face = "bold"))
+```
+
+\newpage
+
+```{r figS4b, fig.height=7, fig.width=9, messages = FALSE,fig.cap="Frequency of threats, systems and taxa in the Living Planet Database once records have been filtered to time series containing 5, 10 and 20 years of data."}
+model_ls_sens2 <- list(mod_glob,mod_glob20, mod_glob40) %>%
+  setNames(c("10","20","40"))
+
+threat_freq <- lapply(seq_along(model_ls_sens2),function(mod){
+  
+  model_ls_sens2[[mod]][["data"]] %>%
+    distinct(series, .keep_all = T) %>%
+    dplyr::select(!dplyr::contains(".")) %>%
+    dplyr::select(-c(y_centered, scaled_year, SpeciesName, Site, time)) %>%
+    pivot_longer(1:6, names_to = "threats") %>%
+    filter(value != 0) %>%
+    group_by(threats) %>%
+    summarise(n = sum(as.numeric(value))) %>%
+    rbind(tibble(
+      threats = "None",
+      n = model_ls_sens2[[mod]][["data"]] %>%
+        distinct(series, .keep_all = TRUE) %>%
+        summarise(count = n()) %>%
+        pull(count) - sum(.$n)
+    )) %>%
+    mutate(
+      total = model_ls_sens2[[mod]][["data"]] %>%
+        distinct(series, .keep_all = TRUE) %>%
+        summarise(count = n()) %>%
+        pull(count),
+      freq = (n / total),
+      threats = ifelse(
+        threats == "climatechange",
+        "Climate change",
+        ifelse(
+          threats == "exploitation",
+          "Exploitation",
+          ifelse(
+            threats == "invasive",
+            "Invasive",
+            ifelse(
+              threats == "disease",
+              "Disease",
+              ifelse(
+                threats == "habitatl",
+                "Habitat loss",
+                ifelse(threats ==
+                         "pollution", "Pollution", threats)
+              )
+            )
+          )
+        )
+      )
+    ) %>%
+    mutate(Duration = paste(as.numeric(names(model_ls_sens2)[mod])/2,"data points"))
+}) %>%
+  do.call("rbind",args = .)
+
+taxa_freq <- lapply(seq_along(model_ls_sens2),function(mod){
+  
+ model_ls_sens2[[mod]][["data"]] %>%
+    left_join(subset(mod_dat_full,select = c(series,Taxon,SpeciesName)) |>
+                distinct(), by = c("series","SpeciesName")) %>%
+    distinct(series, .keep_all = T) %>%
+    mutate(total = n()) %>%
+    group_by(Taxon) %>%
+    mutate(n = n(),
+           freq = n/total) %>%
+    select(Taxon,freq) %>%
+    distinct()  %>%
+    mutate(Duration = paste(as.numeric(names(model_ls_sens2)[mod])/2,"data points"))
+}) %>%
+  do.call("rbind",args = .)
+
+system_freq <- lapply(seq_along(model_ls_sens2),function(mod){
+  
+  model_ls_sens2[[mod]][["data"]] %>%
+    left_join(subset(mod_dat_full,select = c(series,System,SpeciesName)) |>
+                distinct(), by = c("series","SpeciesName")) %>%
+    distinct(series, .keep_all = T) %>%
+    mutate(total = n()) %>%
+    group_by(System) %>%
+    mutate(n = n(),
+           freq = n/total) %>%
+    select(System,freq) %>%
+    distinct()  %>%
+    mutate(Duration = paste(as.numeric(names(model_ls_sens2)[mod])/2,"data points"))
+}) %>%
+  do.call("rbind",args = .)
+
+# We create the palette
+
+palette_a <- data.frame(
+  threats = c(
+    "None",
+    "Pollution",
+    "Habitat loss",
+    "Climate change",
+    "Invasive",
+    "Exploitation",
+    "Disease"
+  ),
+  fill_col = as.factor(c("grey50", threat_palette))
+)
+
+palette_b <- data.frame(
+  Taxon = unique(taxa_freq$Taxon),
+  fill_col = as.factor(wes_palette("Cavalcanti1", n = 5))
+)
+
+palette_c <- data.frame(
+  System = unique(system_freq$System),
+  fill_col = as.factor(c("#A1D6E2","#336B87", "#CC954E"))
+)
+
+# Plot
+
+figureS10a <- threat_freq %>%
+    left_join(palette_a, by = "threats") %>%
+    mutate(threats = factor(
+      threats,
+      levels = c(
+        "None",
+        "Disease",
+        "Invasive",
+        "Climate change",
+        "Pollution",
+        "Habitat loss",
+        "Exploitation"
+      )
+    )) %>%
+    ggplot(aes(
+      fill = fill_col, x = freq, y = threats
+    )) +
+    geom_bar(stat = "identity") +
+    scale_fill_manual(values = levels(palette_a$fill_col), guide = NULL) +
+    scale_x_continuous(
+      breaks = seq(0, 1, .1),
+      label = scales::percent,
+      expand = c(0, 0)
+    ) +
+  scale_y_discrete(limits = rev) +
+    labs(x = "Proportion of threats (%)", y = "", fill = "") +
+  facet_wrap(~fct_relevel(Duration,'5 data points','10 data points',"20 data points")) +
+    theme(
+      legend.text = element_text(size = 12),
+      strip.text = element_text(hjust = 0),
+      axis.title.y = element_blank(),
+      axis.title.x = element_text(size = 14))
+
+figureS10b <- taxa_freq %>%
+  left_join(palette_b, by = "Taxon") %>%
+  ggplot(aes(
+    fill = fill_col, x = freq, y = Taxon
+  )) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = levels(palette_b$fill_col), guide = NULL) +
+  scale_x_continuous(
+    breaks = seq(0, 1, .1),
+    label = scales::percent,
+    expand = c(0, 0)
+  ) +
+  scale_y_discrete(limits = rev) +
+  labs(x = "Proportion of taxa (%)", y = "", fill = "") +
+  facet_wrap(~fct_relevel(Duration,'5 data points','10 data points',"20 data points")) +
+  theme(
+    legend.text = element_text(size = 12),
+    strip.text = element_text(hjust = 0),
+    axis.title.y = element_blank(),
+    axis.title.x = element_text(size = 14))
+
+figureS10c <- system_freq %>%
+  left_join(palette_c, by = "System") %>%
+  ggplot(aes(
+    fill = fill_col, x = freq, y = System
+  )) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = levels(palette_c$fill_col), guide = NULL) +
+  scale_x_continuous(
+    breaks = seq(0, 1, .1),
+    label = scales::percent,
+    expand = c(0, 0)
+  ) +
+  scale_y_discrete(limits = rev) +
+  labs(x = "Proportion of systems (%)", y = "", fill = "") +
+  facet_wrap(~fct_relevel(Duration,'5 data points','10 data points',"20 data points")) +
+  theme(
+    legend.text = element_text(size = 12),
+    strip.text = element_text(hjust = 0),
+    axis.title.y = element_blank(),
+    axis.title.x = element_text(size = 14))
+
+figureS10a + figureS10b + figureS10c + 
+         plot_layout(nrow = 3) + 
+         plot_annotation(tag_levels = "a") &
+         theme(plot.tag = element_text(face = "bold"))
+```
+
+\newpage
+
+# Appendix S3: Model checks
+
+```{r figS2a, cache = FALSE, autodep=FALSE, fig.height=8, fig.width=12, fig.cap="Distribution of the standardised residuals for the multilevel Bayesian models. Residuals were examined for the (a) general model, (b-d) system specific models (freshwater, marine, terrestrial), and (e-i) amphibians, birds, fishes, mammals, and reptiles respectively."}
+p3a <- lapply(mod_ls_diag, function(m) {
+  m$data %>%
+    mutate(std_resid = residuals(m, ndraws = 1000)[, "Estimate"]) %>%
+    ggplot(aes(std_resid)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   colour = "#9B9B9B",
+                   fill = "#BFBFBF") +
+    scale_y_continuous(expand = c(0, 0)) +
+    scale_x_continuous(labels = scales::number_format(accuracy = 0.01)) +
+    labs(x = "Standardised residuals", y = "Density")
+})
+
+combined_plotS2 <-  wrap_plots(p3a, nrow = 3) +
+  plot_annotation(tag_levels = "a") &
+  labs(x = NULL, y = NULL) &
+  theme(plot.tag = element_text(face = 'bold'))
+
+# Create a separate plot for the y-axis label
+
+ylabelS2 <- ggplot(data.frame(l = p3a[[1]]$labels$y, x = 1, y = 1)) +
+  geom_text(aes(x, y, label = l), size = 5, angle = 90) +
+  theme_void() +
+  coord_cartesian(clip = "off")
+
+# Create a separate plot for the x-axis label
+
+xlabelS2 <- ggplot(data.frame(l = p3a[[1]]$labels$x, x = 1, y = 1)) +
+  geom_text(aes(x, y, label = l), size = 5) +
+  theme_void() +
+  coord_cartesian(clip = "off")
+
+# Combine the original figure with the y-axis label
+
+topS2 <- cowplot::plot_grid(ylabelS2, combined_plotS2, rel_widths = c(1, 25))
+
+# Combine with the x-axis label
+
+cowplot::plot_grid(
+  topS2,
+  xlabelS2,
+  nrow = 2,
+  rel_heights = c(25, 1)
+)
+
+```
+
+\newpage
+
+```{r figS2b, cache = FALSE, autodep=FALSE, fig.height=8, fig.width=12, fig.cap="The standardised residuals vs the predicted values for the multilevel Bayesian models. The standardised residuals vs the predicted values have similar variances for all models, suggesting that the equal variance assumption is met.  Residuals were examined for the (a) general model, (b-d) system specific models (freshwater, marine, terrestrial), and (e-i) amphibians, birds, fishes, mammals, and reptiles respectively."}
+p4a <- lapply(mod_ls_diag, function(m) {
+  m$data %>%
+    mutate(predict_y = predict(m, ndraws = 1000)[, "Estimate"], std_resid = residuals(m, ndraws = 1000)[, "Estimate"]) %>%
+    ggplot(aes(predict_y, std_resid)) +
+    geom_point(size = 1.5,
+               shape = 21,
+               fill = "#BFBFBF") +
+    stat_smooth(se = FALSE, colour = "#9B9B9B") +
+    scale_x_continuous(labels = scales::number_format(accuracy = 0.01)) +
+    scale_y_continuous(labels = scales::number_format(accuracy = 0.01)) +
+    labs(y = "Standardised residuals", x = "Predicted values")
+})
+
+combined_plotS3 <-  wrap_plots(p4a, nrow = 3) +
+  plot_annotation(tag_levels = "a") &
+  labs(x = NULL, y = NULL) &
+  theme(plot.tag = element_text(face = 'bold'))
+
+# Create a separate plot for the y-axis label
+
+ylabelS3 <- ggplot(data.frame(l = p4a[[1]]$labels$y, x = 1, y = 1)) +
+  geom_text(aes(x, y, label = l), size = 5, angle = 90) +
+  theme_void() +
+  coord_cartesian(clip = "off")
+
+# Create a separate plot for the x-axis label
+
+xlabelS3 <- ggplot(data.frame(l = p4a[[1]]$labels$x, x = 1, y = 1)) +
+  geom_text(aes(x, y, label = l), size = 5) +
+  theme_void() +
+  coord_cartesian(clip = "off")
+
+# Combine the original figure with the y-axis label
+
+topS3 <- cowplot::plot_grid(ylabelS3, combined_plotS3, rel_widths = c(1, 25))
+
+# Combine with the x-axis label
+
+cowplot::plot_grid(
+  topS3,
+  xlabelS3,
+  nrow = 2,
+  rel_heights = c(25, 1)
+)
+
+```
+
+\newpage
+
+```{r figS2c, cache = FALSE, autodep=FALSE, fig.height=8, fig.width=10, fig.cap="The posterior predictive checks for the multilevel Bayesian models. The posterior predictive checks do not show strong discrepancies between our data (dark lines, y) from the predictions from the model (light grey lines, yrep) for any of the models. However, the model shows a slight underestimation of the true zero values. The posterior predictive checks were examined for the (a) general model, (b-d) system specific models (freshwater, marine, terrestrial), and (e-i) amphibians, birds, fishes, mammals, and reptiles respectively."}
+color_scheme_set("darkgray")
+
+p5a <- lapply(mod_ls_diag, function(m) {
+  pp_check(m, ndraws = 100) +
+    scale_x_continuous(labels = scales::number_format(accuracy = 0.01),
+                       limits = c(-5, 5))
+})
+
+wrap_plots(p5a, nrow = 3) +
+  plot_annotation(tag_levels = "a") &
+  #labs(x = NULL, y = NULL) &
+  theme(plot.tag = element_text(face = 'bold'))
+```
+
+\newpage
+
+```{r figS2e, cache = FALSE, autodep=FALSE, fig.height=6, fig.width=10, fig.cap="Autocorrelation of the standardised residuals for the multilevel Bayesian models. Limited evidence for autocorrelation is present for the (a) general model, (b-d) system specific models (freshwater, marine, terrestrial), and (e-i) amphibians, birds, fishes, mammals, and reptiles respectively."}
+p6a <- lapply(mod_ls_diag, function(m) {
+  
+  m$data %>%
+    mutate(std_resid = residuals(m, ndraws = 1000)[, "Estimate"]) %>%
+    reframe(acf = acf(std_resid, plot = FALSE)$acf) %>%
+    mutate(lag = seq_along(acf) - 1) %>%
+    ggplot(aes(x = lag)) +
+    geom_point(aes(y = acf),
+               colour = "#9B9B9B") +
+    geom_hline(yintercept = c(-0.1,0.1),linetype = "dashed", color = "black") +
+    labs(x = "Lag", y = "ACF")
+})
+
+wrap_plots(p6a, nrow = 3) +
+  plot_annotation(tag_levels = "a") &
+  #labs(x = NULL, y = NULL) &
+  theme(plot.tag = element_text(face = 'bold'))
+```
+
+\newpage

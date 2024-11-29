@@ -1,0 +1,19 @@
+"Threat","Interaction type","n","Frequency"
+"Climate change","Synergistic",0,0
+"Climate change","Antagonistic",14,0.150537634408602
+"Climate change","Additive",79,0.849462365591398
+"Disease","Synergistic",0,0
+"Disease","Antagonistic",18,0.193548387096774
+"Disease","Additive",75,0.806451612903226
+"Exploitation","Synergistic",0,0
+"Exploitation","Antagonistic",11,0.107843137254902
+"Exploitation","Additive",91,0.892156862745098
+"Habitat loss","Synergistic",0,0
+"Habitat loss","Antagonistic",17,0.141666666666667
+"Habitat loss","Additive",103,0.858333333333333
+"Invasive","Synergistic",0,0
+"Invasive","Antagonistic",22,0.215686274509804
+"Invasive","Additive",80,0.784313725490196
+"Pollution","Synergistic",0,0
+"Pollution","Antagonistic",15,0.147058823529412
+"Pollution","Additive",87,0.852941176470588

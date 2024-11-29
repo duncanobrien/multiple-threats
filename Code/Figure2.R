@@ -21,6 +21,8 @@ library(MetBrewer)
 source("Code/utils/prep_data_grid_fn.R")
 source("Code/utils/threat_post_draws.R")
 
+set.seed(43)
+
 # Load the model
 
 mod <- readRDS("Results/models/mod_global_rerun.RDS")

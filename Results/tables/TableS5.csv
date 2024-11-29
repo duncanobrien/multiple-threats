@@ -1,0 +1,55 @@
+"Threat","System","Interaction type","n","Frequency"
+"Climate change","Freshwater","Synergistic",0,0
+"Climate change","Freshwater","Antagonistic",8,0.121212121212121
+"Climate change","Freshwater","Additive",58,0.878787878787879
+"Climate change","Marine","Synergistic",0,0
+"Climate change","Marine","Antagonistic",12,0.173913043478261
+"Climate change","Marine","Additive",57,0.826086956521739
+"Climate change","Terrestrial","Synergistic",0,0
+"Climate change","Terrestrial","Antagonistic",6,0.0909090909090909
+"Climate change","Terrestrial","Additive",60,0.909090909090909
+"Disease","Freshwater","Synergistic",0,0
+"Disease","Freshwater","Antagonistic",13,0.188405797101449
+"Disease","Freshwater","Additive",56,0.811594202898551
+"Disease","Marine","Synergistic",0,0
+"Disease","Marine","Antagonistic",26,0.376811594202899
+"Disease","Marine","Additive",43,0.623188405797101
+"Disease","Terrestrial","Synergistic",10,0.133333333333333
+"Disease","Terrestrial","Antagonistic",3,0.04
+"Disease","Terrestrial","Additive",62,0.826666666666667
+"Exploitation","Freshwater","Synergistic",0,0
+"Exploitation","Freshwater","Antagonistic",7,0.0933333333333333
+"Exploitation","Freshwater","Additive",68,0.906666666666667
+"Exploitation","Marine","Synergistic",0,0
+"Exploitation","Marine","Antagonistic",31,0.303921568627451
+"Exploitation","Marine","Additive",71,0.696078431372549
+"Exploitation","Terrestrial","Synergistic",9,0.107142857142857
+"Exploitation","Terrestrial","Antagonistic",0,0
+"Exploitation","Terrestrial","Additive",75,0.892857142857143
+"Habitat loss","Freshwater","Synergistic",0,0
+"Habitat loss","Freshwater","Antagonistic",21,0.205882352941176
+"Habitat loss","Freshwater","Additive",81,0.794117647058823
+"Habitat loss","Marine","Synergistic",0,0
+"Habitat loss","Marine","Antagonistic",23,0.225490196078431
+"Habitat loss","Marine","Additive",79,0.774509803921569
+"Habitat loss","Terrestrial","Synergistic",0,0
+"Habitat loss","Terrestrial","Antagonistic",9,0.075
+"Habitat loss","Terrestrial","Additive",111,0.925
+"Invasive","Freshwater","Synergistic",0,0
+"Invasive","Freshwater","Antagonistic",15,0.294117647058824
+"Invasive","Freshwater","Additive",36,0.705882352941177
+"Invasive","Marine","Synergistic",0,0
+"Invasive","Marine","Antagonistic",35,0.376344086021505
+"Invasive","Marine","Additive",58,0.623655913978495
+"Invasive","Terrestrial","Synergistic",9,0.107142857142857
+"Invasive","Terrestrial","Antagonistic",6,0.0714285714285714
+"Invasive","Terrestrial","Additive",69,0.821428571428571
+"Pollution","Freshwater","Synergistic",0,0
+"Pollution","Freshwater","Antagonistic",14,0.186666666666667
+"Pollution","Freshwater","Additive",61,0.813333333333333
+"Pollution","Marine","Synergistic",0,0
+"Pollution","Marine","Antagonistic",24,0.285714285714286
+"Pollution","Marine","Additive",60,0.714285714285714
+"Pollution","Terrestrial","Synergistic",7,0.0933333333333333
+"Pollution","Terrestrial","Antagonistic",3,0.04
+"Pollution","Terrestrial","Additive",65,0.866666666666667

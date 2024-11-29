@@ -46,7 +46,7 @@ tableS1 <- describe_posterior(m1) %>%
   mutate(across(Median:CI_high, ~ round(., digits = 3))) %>%
   mutate(across(Rhat:ESS, ~ round(., digits = 2)))
 
-write.csv(tableS1, "Results/tables/TableS1")
+write.csv(tableS1, "Results/tables/TableS1.csv", row.names = FALSE)
 
 # Table S2: System model coefficients ##########
 
@@ -60,7 +60,7 @@ tableS2 <- lapply(seq_along(sys_model_ls), function(mod) {
 }) %>%
   bind_rows()
 
-write.csv(tableS2, "Results/tables/TableS2")
+write.csv(tableS2, "Results/tables/TableS2.csv", row.names = FALSE)
 
 # Table S3: Taxon model coefficients ##########
 
@@ -74,7 +74,7 @@ tableS3 <- lapply(seq_along(taxon_model_ls), function(mod) {
 }) %>%
   bind_rows()
 
-write.csv(tableS3, "Results/tables/TableS3")
+write.csv(tableS3, "Results/tables/TableS3.csv", row.names = FALSE)
 
 # Table S4: Threat interaction types ##########
 
@@ -185,7 +185,7 @@ tableS4 <- post_interval_intvadd_diff %>%
   ) %>%
   setNames(c("Threat", "Interaction type", "n", "Frequency"))
 
-write.csv(tableS4, "Results/tables/TableS4")
+write.csv(tableS4, "Results/tables/TableS4.csv", row.names = FALSE)
 
 # Table S5: Threat interaction types by system and taxa ##########
 
@@ -301,7 +301,7 @@ tableS5 <- lapply(seq_along(sys_model_ls), function(mod) {
   bind_rows() %>%
   arrange(Threat, System)
 
-write.csv(tableS5, "Results/tables/TableS5")
+write.csv(tableS5, "Results/tables/TableS5.csv", row.names = FALSE)
 
 # Table S6: Threat interaction types by system and taxa ##########
 
@@ -416,4 +416,4 @@ tableS6 <- lapply(seq_along(taxon_model_ls), function(mod) {
   bind_rows() %>%
   arrange(Threat, Taxon)
 
-write.csv(tableS6, "Results/tables/TableS6")
+write.csv(tableS6, "Results/tables/TableS6.csv", row.names = FALSE)

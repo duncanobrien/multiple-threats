@@ -34,44 +34,45 @@ load("Data/LivingPlanetData2.RData")
 # Set the priors
 
 priors <- c(prior(normal(0, 1), class = b),
-            prior(exponential(1), class = sd),
-            prior(normal(0, 0.25), class = ar))
+            prior(exponential(1), class = sd)
+            ,prior(normal(0, 0.25), class = ar)
+            )
 
-# Fit global model upon time series at least 10 years long -------------------------------------------------------
-mod_dat_a <- prepare_data(dd_long, duration = 10, ratio = 0.5) |>
-  arrange(ID)
+# Fit global model upon time series at least 40 years long -------------------------------------------------------
+# mod_dat_a <- prepare_data(dd_long, duration = 10, ratio = 0.5) |>
+#   arrange(ID)
 
-mod_dat_10 <- prepare_data(dd_long, duration = 10) |>
+mod_dat_40 <- prepare_data(dd_long, duration = 40, ratio = 0.5) |>
   arrange(ID)
 
 # Subset the locations
 
-locs10 <- distinct(mod_dat_10[, c("Longitude", "Latitude")]) %>%
+locs40 <- distinct(mod_dat_40[, c("Longitude", "Latitude")]) %>%
   mutate(Site = paste(Latitude, Longitude, sep = "_"))
 
 # Get the spatial distance matrix
 
-spa_mat_trim10 <- as.matrix(geosphere::distm(locs10[, c("Longitude", "Latitude")], fun = geosphere::distHaversine)) /
+spa_mat_trim40 <- as.matrix(geosphere::distm(locs40[, c("Longitude", "Latitude")], fun = geosphere::distHaversine)) /
   1000 #km distance between sites
 # Normalise the distance
 
-spa_mat_trim10 <- norm_range(spa_mat_trim10)
+spa_mat_trim40 <- norm_range(spa_mat_trim40)
 
 # Get the absolute value
 
-spa_mat_trim10 <- abs(spa_mat_trim10 - 1)
+spa_mat_trim40 <- abs(spa_mat_trim40 - 1)
 
 # Set the col and rownames
 
-colnames(spa_mat_trim10) <- locs10$Site
-rownames(spa_mat_trim10) <- locs10$Site
+colnames(spa_mat_trim40) <- locs40$Site
+rownames(spa_mat_trim40) <- locs40$Site
 
 # Create the formula
 
-rhs10 <- paste0(
+rhs40 <- paste0(
   paste(
     "scaled_year*",
-    colnames(mod_dat_10)[grepl(paste(
+    colnames(mod_dat_40)[grepl(paste(
       c(
         "pollution",
         "habitatl",
@@ -81,27 +82,28 @@ rhs10 <- paste0(
         "disease"
       ),
       collapse = "|"
-    ), colnames(mod_dat_10))],
+    ), colnames(mod_dat_40))],
     sep = "",
     collapse = " + "
   ),
   " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
-               (0 + scaled_year|gr(Site, cov = spa_mat)) - 1"
+               (0 + scaled_year|gr(Site, cov = spa_mat)) + 1"
 )
 
 # Combine y_centered and rhs into a model formula
 
-form10 <- as.formula(paste("y_centered", "~", rhs10))
+form40 <- as.formula(paste("y_centered", "~", rhs40))
 
 # Run the model
 
-mod_glob10 <- brm(
-  bf(form10 #include realm/spp as slopes, x intercepts
+mod_glob40 <- brm(
+  bf(form40 #include realm/spp as slopes, x intercepts
      , autocor = ~ ar(
        time = time, gr = series, p = 1
-     )),
-  data = mod_dat_10,
-  data2 = list(spa_mat = spa_mat_trim10),
+     )
+     ),
+  data = mod_dat_40,
+  data2 = list(spa_mat = spa_mat_trim40),
   family = gaussian(),
   iter = 5000,
   refresh = 100,
@@ -115,40 +117,45 @@ mod_glob10 <- brm(
 
 # Save the model
 
-saveRDS(mod_glob10, "Results/models/mod_global_10.RDS")
+saveRDS(mod_glob40, "Results/models/mod_global_40.RDS")
 
-# Fit global model upon time series at least 25 years long -------------------------------------------------------
+# Fit global model upon time series at least 20 years long -------------------------------------------------------
 
-mod_dat_25 <- prepare_data(dd_long, duration = 25)
+mod_dat_20 <- prepare_data(dd_long, duration = 20, ratio = 0.5) |>
+  arrange(ID)
 
 # Subset the locations
 
-locs25 <- distinct(mod_dat_25[, c("Longitude", "Latitude")]) %>%
+locs20 <- distinct(mod_dat_20[, c("Longitude", "Latitude")]) %>%
   mutate(Site = paste(Latitude, Longitude, sep = "_"))
 
 # Get the spatial distance matrix
 
-spa_mat_trim25 <- as.matrix(geosphere::distm(locs25[, c("Longitude", "Latitude")], fun = geosphere::distHaversine)) /
+spa_mat_trim20 <- as.matrix(geosphere::distm(locs20[, c("Longitude", "Latitude")], fun = geosphere::distHaversine)) /
   1000 #km distance between sites
 # Normalise the distance
 
-spa_mat_trim25 <- norm_range(spa_mat_trim25)
+spa_mat_trim20 <- norm_range(spa_mat_trim20)
 
 # Get the absolute value
 
-spa_mat_trim25 <- abs(spa_mat_trim25 - 1)
+spa_mat_trim20 <- abs(spa_mat_trim20 - 1)
 
 # Set the col and rownames
 
-colnames(spa_mat_trim25) <- locs25$Site
-rownames(spa_mat_trim25) <- locs25$Site
+colnames(spa_mat_trim20) <- locs20$Site
+rownames(spa_mat_trim20) <- locs20$Site
+
+# Regularise covariance matrix
+
+diag(spa_mat_trim20) <- diag(spa_mat_trim20) + 0.00000001
 
 # Create the formula
 
-rhs25 <- paste0(
+rhs20 <- paste0(
   paste(
     "scaled_year*",
-    colnames(mod_dat_25)[grepl(paste(
+    colnames(mod_dat_20)[grepl(paste(
       c(
         "pollution",
         "habitatl",
@@ -158,27 +165,27 @@ rhs25 <- paste0(
         "disease"
       ),
       collapse = "|"
-    ), colnames(mod_dat_25))],
+    ), colnames(mod_dat_20))],
     sep = "",
     collapse = " + "
   ),
   " + (-1 + scaled_year|SpeciesName) + (-1 + scaled_year|series) +
-               (0 + scaled_year|gr(Site, cov = spa_mat)) - 1"
+               (0 + scaled_year|gr(Site, cov = spa_mat)) + 1"
 )
 
 # Combine y_centered and rhs into a model formula
 
-form25 <- as.formula(paste("y_centered", "~", rhs25))
+form20 <- as.formula(paste("y_centered", "~", rhs20))
 
 # Run the model
 
-mod_glob25 <- brm(
-  bf(form25 #include realm/spp as slopes, x intercepts
+mod_glob20 <- brm(
+  bf(form20 #include realm/spp as slopes, x intercepts
      , autocor = ~ ar(
        time = time, gr = series, p = 1
      )),
-  data = mod_dat_25,
-  data2 = list(spa_mat = spa_mat_trim25),
+  data = mod_dat_20,
+  data2 = list(spa_mat = spa_mat_trim20),
   family = gaussian(),
   iter = 5000,
   refresh = 100,
@@ -192,8 +199,26 @@ mod_glob25 <- brm(
 
 # Save the model
 
-saveRDS(mod_glob25, "Results/models/mod_global_25.RDS")
+saveRDS(mod_glob20, "Results/models/mod_global_20.RDS")
 
+# Compare trends between decades -------------------------------------------------------
+mod_glob20 <- brm(
+  bf(form20 #include realm/spp as slopes, x intercepts
+     , autocor = ~ ar(
+       time = time, gr = series, p = 1
+     )),
+  data = mod_dat_20,
+  data2 = list(spa_mat = spa_mat_trim20),
+  family = gaussian(),
+  iter = 5000,
+  refresh = 100,
+  backend = "cmdstanr",
+  silent = 0,
+  prior = priors,
+  chains = 4,
+  control = list(adapt_delta = 0.975, max_treedepth = 12),
+  cores = 4
+)
 # Create Figure 2 for both models -------------------------------------------------------
 
 # Set default ggplot theme
@@ -231,10 +256,11 @@ theme_set(
 threat_palette <- c(met.brewer(name = "Hokusai1", n = 6, type = "continuous"))
 
 #Load sensitivity test models
-mod_glob10 <- readRDS("Results/models/mod_global_10.RDS")
-mod_glob25 <- readRDS("Results/models/mod_global_25.RDS")
+mod_glob40 <- readRDS("Results/models/mod_global_40.RDS")
+mod_glob20 <- readRDS("Results/models/mod_global_20.RDS")
 
-model_ls <- list(mod_glob10, mod_glob25)
+model_ls <- list(mod_glob20, mod_glob40) %>%
+  setNames(c("20","40"))
 
 sensitivity_fig2 <- lapply(model_ls, function(mod) {
   coefs_df <- mod %>%
@@ -606,21 +632,232 @@ sensitivity_fig2 <- lapply(model_ls, function(mod) {
     scale_fill_manual(values = levels(plot_dydx_threats$fill_col),
                       guide = "none") +
     coord_cartesian(ylim = c(-0.1, 0.1)) +
-    theme(plot.margin = unit(c(0, 0.5, 0, .5), "cm"),
+    theme(#plot.margin = unit(c(0, 0.5, 0, .5), "cm"),
           axis.title.x = element_blank())
   
-  layout <- "
+  return(list(g2a,g2b,g2c))
+}) |>
+do.call("c",args = _)
+
+
+layout <- "
   AAABB
   CCCCC
+  DDDEE
+  FFFFF
   "
-  
-  fig2 <- g2a + g2b + free(g2c) +
-    plot_layout(design = layout, widths = 1) +
-    plot_annotation(tag_levels = "a") &
-    theme(plot.tag = element_text(face = "bold"))
-  
-  return(fig2)
-})
 
-sensitivity_fig2[[1]] + sensitivity_fig2[[2]]
-figureS8 <-  wrap_plots(unlist(sensitivity_fig2), nrow = 2)
+figureS9 <- wrap_plots(sensitivity_fig2) +
+  plot_layout(design = layout, widths = 1, heights = c(1,0.5,1,0.5)) +
+  plot_annotation(tag_levels = "a") &
+  theme(plot.tag = element_text(face = "bold"))
+
+ggsave("Results/figures/FigureS10.pdf",
+       figureS9,
+       width = 14,
+       height = 14)
+
+# Spread of threats across data subsets -------------------------------------------------------
+
+#Load sensitivity test models
+mod_glob40 <- readRDS("Results/models/mod_global_40.RDS")
+mod_glob20 <- readRDS("Results/models/mod_global_20.RDS")
+mod_glob <- readRDS("Results/models/mod_global_rerun.RDS")
+
+model_ls <- list(mod_glob,mod_glob20, mod_glob40) %>%
+  setNames(c("10","20","40"))
+
+threat_freq <- lapply(seq_along(model_ls),function(mod){
+  
+  model_ls[[mod]][["data"]] %>%
+    distinct(series, .keep_all = T) %>%
+    dplyr::select(!dplyr::contains(".")) %>%
+    dplyr::select(-c(y_centered, scaled_year, SpeciesName, Site, time)) %>%
+    pivot_longer(1:6, names_to = "threats") %>%
+    filter(value != 0) %>%
+    group_by(threats) %>%
+    summarise(n = sum(as.numeric(value))) %>%
+    rbind(tibble(
+      threats = "None",
+      n = model_ls[[mod]][["data"]] %>%
+        distinct(series, .keep_all = TRUE) %>%
+        summarise(count = n()) %>%
+        pull(count) - sum(.$n)
+    )) %>%
+    mutate(
+      total = model_ls[[mod]][["data"]] %>%
+        distinct(series, .keep_all = TRUE) %>%
+        summarise(count = n()) %>%
+        pull(count),
+      freq = (n / total),
+      threats = ifelse(
+        threats == "climatechange",
+        "Climate change",
+        ifelse(
+          threats == "exploitation",
+          "Exploitation",
+          ifelse(
+            threats == "invasive",
+            "Invasive",
+            ifelse(
+              threats == "disease",
+              "Disease",
+              ifelse(
+                threats == "habitatl",
+                "Habitat loss",
+                ifelse(threats ==
+                         "pollution", "Pollution", threats)
+              )
+            )
+          )
+        )
+      )
+    ) %>%
+    mutate(Duration = paste(as.numeric(names(model_ls)[mod])/2,"data points"))
+}) %>%
+  do.call("rbind",args = .)
+
+mod_dat_full <- prepare_data(dd_long, duration = 10, ratio = 0.5) |>
+  arrange(ID)
+
+taxa_freq <- lapply(seq_along(model_ls),function(mod){
+  
+ model_ls[[mod]][["data"]] %>%
+    left_join(subset(mod_dat_full,select = c(series,Taxon,SpeciesName)) |>
+                distinct(), by = c("series","SpeciesName")) %>%
+    distinct(series, .keep_all = T) %>%
+    mutate(total = n()) %>%
+    group_by(Taxon) %>%
+    mutate(n = n(),
+           freq = n/total) %>%
+    select(Taxon,freq) %>%
+    distinct()  %>%
+    mutate(Duration = paste(as.numeric(names(model_ls)[mod])/2,"data points"))
+}) %>%
+  do.call("rbind",args = .)
+
+system_freq <- lapply(seq_along(model_ls),function(mod){
+  
+  model_ls[[mod]][["data"]] %>%
+    left_join(subset(mod_dat_full,select = c(series,System,SpeciesName)) |>
+                distinct(), by = c("series","SpeciesName")) %>%
+    distinct(series, .keep_all = T) %>%
+    mutate(total = n()) %>%
+    group_by(System) %>%
+    mutate(n = n(),
+           freq = n/total) %>%
+    select(System,freq) %>%
+    distinct()  %>%
+    mutate(Duration = paste(as.numeric(names(model_ls)[mod])/2,"data points"))
+}) %>%
+  do.call("rbind",args = .)
+
+# We create the palette
+
+palette_a <- data.frame(
+  threats = c(
+    "None",
+    "Pollution",
+    "Habitat loss",
+    "Climate change",
+    "Invasive",
+    "Exploitation",
+    "Disease"
+  ),
+  fill_col = as.factor(c("grey50", threat_palette))
+)
+
+palette_b <- data.frame(
+  Taxon = unique(taxa_freq$Taxon),
+  fill_col = as.factor(wes_palette("Cavalcanti1", n = 5))
+)
+
+palette_c <- data.frame(
+  System = unique(system_freq$System),
+  fill_col = as.factor(c("#A1D6E2","#336B87", "#CC954E"))
+)
+
+# Plot
+
+figureS10a <- threat_freq %>%
+    left_join(palette_a, by = "threats") %>%
+    mutate(threats = factor(
+      threats,
+      levels = c(
+        "None",
+        "Disease",
+        "Invasive",
+        "Climate change",
+        "Pollution",
+        "Habitat loss",
+        "Exploitation"
+      )
+    )) %>%
+    ggplot(aes(
+      fill = fill_col, x = freq, y = threats
+    )) +
+    geom_bar(stat = "identity") +
+    scale_fill_manual(values = levels(palette_a$fill_col), guide = NULL) +
+    scale_x_continuous(
+      breaks = seq(0, 1, .1),
+      label = scales::percent,
+      expand = c(0, 0)
+    ) +
+  scale_y_discrete(limits = rev) +
+    labs(x = "Proportion of threats (%)", y = "", fill = "") +
+  facet_wrap(~fct_relevel(Duration,'5 data points','10 data points',"20 data points")) +
+    theme(
+      legend.text = element_text(size = 12),
+      strip.text = element_text(hjust = 0),
+      axis.title.y = element_blank(),
+      axis.title.x = element_text(size = 14))
+
+figureS10b <- taxa_freq %>%
+  left_join(palette_b, by = "Taxon") %>%
+  ggplot(aes(
+    fill = fill_col, x = freq, y = Taxon
+  )) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = levels(palette_b$fill_col), guide = NULL) +
+  scale_x_continuous(
+    breaks = seq(0, 1, .1),
+    label = scales::percent,
+    expand = c(0, 0)
+  ) +
+  scale_y_discrete(limits = rev) +
+  labs(x = "Proportion of taxa (%)", y = "", fill = "") +
+  facet_wrap(~fct_relevel(Duration,'5 data points','10 data points',"20 data points")) +
+  theme(
+    legend.text = element_text(size = 12),
+    strip.text = element_text(hjust = 0),
+    axis.title.y = element_blank(),
+    axis.title.x = element_text(size = 14))
+
+figureS10c <- system_freq %>%
+  left_join(palette_c, by = "System") %>%
+  ggplot(aes(
+    fill = fill_col, x = freq, y = System
+  )) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = levels(palette_c$fill_col), guide = NULL) +
+  scale_x_continuous(
+    breaks = seq(0, 1, .1),
+    label = scales::percent,
+    expand = c(0, 0)
+  ) +
+  scale_y_discrete(limits = rev) +
+  labs(x = "Proportion of systems (%)", y = "", fill = "") +
+  facet_wrap(~fct_relevel(Duration,'5 data points','10 data points',"20 data points")) +
+  theme(
+    legend.text = element_text(size = 12),
+    strip.text = element_text(hjust = 0),
+    axis.title.y = element_blank(),
+    axis.title.x = element_text(size = 14))
+
+ggsave("Results/figures/FigureS11.pdf",
+       figureS10a + figureS10b + figureS10c + 
+         plot_layout(nrow = 3) + 
+         plot_annotation(tag_levels = "a") &
+         theme(plot.tag = element_text(face = "bold")),
+       width = 9,
+       height = 7)

@@ -9,7 +9,6 @@
 #' 
 #' @examples
 #' post_draws <- threat_post_draws(model = brms_mod1, threat_comns = c("climatechange","pollution","invasive"))
-require(foreach)
 
 threat_counterfac_draws <- function(model, threat_comns, center_dydx = c("mean","median"),
                                     re.form = NULL,

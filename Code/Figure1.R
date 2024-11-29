@@ -61,6 +61,14 @@ taxon_pal <- wes_palette("Cavalcanti1", n = 5)
 
 mod <- readRDS("Results/models/mod_global_rerun.RDS")
 
+# Load the model data
+
+load("Data/data_models.RData")
+
+# Filter the data to unique time series
+
+data <- mod_dat_full %>% distinct(ID, .keep_all = T)
+
 # Figure 1: Map and trends #####################################################
 ## Map -------------------------------------------------------------------------
 
@@ -133,7 +141,7 @@ anot <- data.frame(
     geom_vline(
       aes(xintercept = median(Duration)),
       linetype = "longdash",
-      size = 0.5
+      linewidth = 0.5
     ) +
     scale_y_continuous(expand = c(0, 0)) +
     scale_x_continuous(breaks = seq(10, 60, 10), expand = c(0, 0)) +
@@ -153,7 +161,7 @@ anot <- data.frame(
 
 # Combined map
 
-(g1a <- ggdraw(g1a + theme(legend.position = c(0.40, 0.08))) +
+(g1a <- ggdraw(g1a + theme(legend.position.inside = c(0.40, 0.08))) +
     draw_plot(
       gd1,
       x = -0.32,

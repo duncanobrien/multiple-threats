@@ -47,7 +47,7 @@ prep_data_grid <- function(data,
   newdata <- cbind(newdata, setNames(lapply(selcols, function(x){x=factor("1",levels = c("0","1"))}), selcols)) #set the desired threat columns to "1"
   }
   newdata <- cbind(newdata, setNames(lapply(nullcols, function(x){x=factor("0",levels = c("0","1"))}), nullcols)) %>% #and the undesired threat columns to "0"
-    mutate(time = seq_along(scaled_year)) #before adding a final nuisance variable due to the autocorrelation term
+    mutate(time = seq_along(!!sym(trend))) #before adding a final nuisance variable due to the autocorrelation term
   
   return(newdata)
   

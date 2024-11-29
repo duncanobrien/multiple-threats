@@ -186,7 +186,7 @@ palette <- data.frame(counterfac = c("No pollution","No habitat loss",
 
  # Save it
 
-ggsave("Results/Figure 4.pdf", g4, 
+ggsave("Results/figures/Figure4.pdf", g4, 
        width = 10, height = 6)
 
 ## Two threats scenarios -------------------------------------------------------
@@ -291,7 +291,7 @@ ggsave("Results/Figure 4.pdf", g4,
 
 # Save it
 
-ggsave("Results/FigureS13.pdf", figureS13,
+ggsave("Results/figures/FigureS13.pdf", figureS13,
        width = 14, height = 12)
 
 # # Estimate the difference in population trend

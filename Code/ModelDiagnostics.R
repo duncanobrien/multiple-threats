@@ -107,7 +107,7 @@ xlabelS2 <- ggplot(data.frame(l = p3a[[1]]$labels$x, x = 1, y = 1)) +
   rel_heights = c(25, 1)
 ))
 
-ggsave("Results/FigureS2.pdf",
+ggsave("Results/figures/FigureS2.pdf",
        figureS2,
        width = 12,
        height = 8)
@@ -161,7 +161,7 @@ xlabelS3 <- ggplot(data.frame(l = p4a[[1]]$labels$x, x = 1, y = 1)) +
   rel_heights = c(25, 1)
 ))
 
-ggsave("Results/FigureS3.pdf",
+ggsave("Results/figures/FigureS3.pdf",
        figureS3,
        width = 12,
        height = 8)
@@ -183,8 +183,47 @@ figureS4 <-  wrap_plots(p5a, nrow = 3) +
 
 # Save the combined figure
 
-ggsave("Results/FigureS4.pdf",
+ggsave("Results/figures/FigureS4.pdf",
        figureS4,
+       height = 8,
+       width = 10)
+
+# Autocorrelation check ---------------------------------------------------
+
+p6a <- lapply(mod_ls, function(m) {
+  # m$data %>%
+  #   mutate(std_resid = residuals(m)[, "Estimate"]) %>%
+  #   reframe(acf = acf(std_resid, plot = FALSE)$acf, .by = series) %>%
+  #   mutate(lag = factor(seq_along(acf) - 1), .by = series) %>%
+  #   ggplot(aes(x = lag)) +
+  #   geom_point(aes(y = acf),
+  #              alpha = 0.5,
+  #              colour = "#9B9B9B",
+  #              position = position_jitter()) +
+  #   geom_boxplot(aes(y = acf), fill = "#BFBFBF", alpha = 0.5) +
+  #   coord_cartesian(xlim = c(2, 18)) +
+  #   labs(x = "Lag", y = "ACF")
+  
+  m$data %>%
+    mutate(std_resid = residuals(m)[, "Estimate"]) %>%
+    reframe(acf = acf(std_resid, plot = FALSE)$acf) %>%
+    mutate(lag = seq_along(acf) - 1) %>%
+    ggplot(aes(x = lag)) +
+    geom_point(aes(y = acf),
+               colour = "#9B9B9B") +
+    geom_hline(yintercept = c(-0.1,0.1),linetype = "dashed", color = "black") +
+    labs(x = "Lag", y = "ACF")
+})
+
+figureS5 <-  wrap_plots(p6a, nrow = 3) +
+  plot_annotation(tag_levels = "a") &
+  #labs(x = NULL, y = NULL) &
+  theme(plot.tag = element_text(face = 'bold'))
+
+# Save the combined figure
+
+ggsave("Results/figures/FigureS5.pdf",
+       figureS5,
        height = 8,
        width = 10)
 

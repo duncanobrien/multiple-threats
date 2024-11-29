@@ -20,6 +20,8 @@ library(rstan)
 source("Code/utils/threat_counterfac_draws.R")
 source("Code/utils/threat_counterfac_pred.R")
 
+set.seed(2024)
+
 # Set default ggplot theme
 
 theme_set(theme_minimal()+

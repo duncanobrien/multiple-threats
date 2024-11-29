@@ -215,7 +215,7 @@ xlabelS5 <- ggplot(data.frame(l = system_coefs[[1]]$labels$x, x = 1, y = 1)) +
   rel_heights = c(25, 1)
 ))
 
-ggsave("Results/FigureS5.pdf",
+ggsave("Results/figures/FigureS6.pdf",
        figureS5,
        width = 14,
        height = 4)
@@ -367,7 +367,7 @@ xlabelS6 <- ggplot(data.frame(l = system_coefs[[1]]$labels$x, x = 1, y = 1)) +
   rel_heights = c(25, 1)
 ))
 
-ggsave("Results/FigureS6.pdf",
+ggsave("Results/figures/FigureS7.pdf",
        figureS6,
        width = 14,
        height = 5)
@@ -553,7 +553,7 @@ xlabelS7 <- ggplot(data.frame(x = 1, y = 1)) +
   rel_heights = c(25, 1)
 ))
 
-ggsave("Results/FigureS7.pdf",
+ggsave("Results/figures/FigureS8.pdf",
        figureS7,
        width = 12,
        height = 8)
@@ -739,7 +739,7 @@ xlabelS8 <- ggplot(data.frame(x = 1, y = 1)) +
   rel_heights = c(25, 1)
 ))
 
-ggsave("Results/FigureS8.pdf",
+ggsave("Results/figures/FigureS9.pdf",
        figureS8,
        width = 14,
        height = 12)

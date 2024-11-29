@@ -47,8 +47,8 @@ taxon_pal <- wes_palette("Cavalcanti1", n = 5)
 
 # Load other customised functions to substract the trends from the plots
 
-source("Code/prep_data_grid_fn.R")
-source("Code/threat_post_draws.R")
+source("Code/utils/prep_data_grid_fn.R")
+source("Code/utils/threat_post_draws.R")
 
 # Load the models 
 
@@ -693,7 +693,7 @@ dydx_interval_intvadd <- post_dydx_intvadd %>%
 post_intvadd_diff <- do.call("rbind", lapply(additive_cols[grepl("\\+", additive_cols)], function(x) {
   ss <- post_dydx_intvadd %>%
     subset(threat %in% c(x, gsub(" \\+ ", ".", x))) %>%
-    reframe(.value = diff(c(.value[2], .value[1])), .by = c(threat_group, .draw)) %>%
+    reframe(.value = diff(c(.value[!grepl("[.]",threat)], .value[grepl("[.]",threat)])), .by = c(threat_group, .draw)) %>%
     mutate(threats = gsub(" \\+ ", ".", x))
 }))
 

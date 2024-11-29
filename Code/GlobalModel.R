@@ -22,6 +22,12 @@ norm_range <- function(x){
 
 load("Data/data_models.RData")
 
+# Load the raw LPI data
+
+load("Data/LivingPlanetData2.RData")
+
+mod_dat_full <- prepare_data(dd_long, duration = 10) |>
+  arrange(ID)
 # Set the priors 
 
 priors <- c(prior(normal(0, 1), class = b),
@@ -82,6 +88,7 @@ mod_glob <- brm(bf(form #include realm/spp as slopes, x intercepts
                cores = 4)
 
 # Save the model 
+saveRDS(mod_glob,"Results/models/mod_global_rerun2.RDS")
 
 saveRDS(mod_glob,"Results/models/mod_global_rerun.RDS")
 

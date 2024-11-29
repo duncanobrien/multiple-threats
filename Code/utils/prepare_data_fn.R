@@ -10,10 +10,10 @@
 
 prepare_data <- function(data, 
                          duration = 10,
-                         #ratio = 0.5,
+                         ratio = 0.5,
                          latlong_digits = 0){
   
-  source("Code/utils/na.noncontiguous_fn.R")
+  #source("Code/utils/na.noncontiguous_fn.R")
   dd_long2 <- data %>%
     group_by(ID) %>%  
     # Calculate population change
@@ -24,23 +24,23 @@ prepare_data <- function(data,
   
   # Filter for ten or more years of data with at least 50% of the years with records
   
-  # dd_final <- dd_long2 %>%
-  #   group_by(ID) %>%
-  #   drop_na(popchange) %>%
-  #   mutate(n = n(),
-  #          Duration=(max(Year)-min(Year))+1,
-  #          Ratio=n/Duration) %>% 
-  #   ungroup() %>% 
-  #   filter(Duration>=duration,
-  #          Ratio>=ratio) 
-  
   dd_final <- dd_long2 %>%
     group_by(ID) %>%
-    arrange(Year) %>%
-    mutate(popchange = na.noncontiguous(popchange,duration)) %>% #find run of unbroken abundances which is at least duration time points long. This function converts all abundances outside of this run to NA
-    ungroup() %>%
     drop_na(popchange) %>%
-    mutate(Duration = n())
+    mutate(n = n(),
+           Duration=(max(Year)-min(Year))+1,
+           Ratio=n/Duration) %>%
+    ungroup() %>%
+    filter(Duration>=duration,
+           Ratio>=ratio)
+  
+  # dd_final <- dd_long2 %>%
+  #   group_by(ID) %>%
+  #   arrange(Year) %>%
+  #   mutate(popchange = na.noncontiguous(popchange,duration)) %>% #find run of unbroken abundances which is at least duration time points long. This function converts all abundances outside of this run to NA
+  #   ungroup() %>%
+  #   drop_na(popchange) %>%
+  #   mutate(Duration = n(), .by = ID)
   
   # Spread the data again
   

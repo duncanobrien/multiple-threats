@@ -1,0 +1,88 @@
+"Threat","Taxon","Interaction type","n","Frequency"
+"Climate change","Amphibian","Synergistic",0,0
+"Climate change","Amphibian","Antagonistic",0,0
+"Climate change","Amphibian","Additive",36,1
+"Climate change","Bird","Synergistic",0,0
+"Climate change","Bird","Antagonistic",15,0.178571428571429
+"Climate change","Bird","Additive",69,0.821428571428571
+"Climate change","Fish","Synergistic",0,0
+"Climate change","Fish","Antagonistic",3,0.0833333333333333
+"Climate change","Fish","Additive",33,0.916666666666667
+"Climate change","Mammal","Synergistic",0,0
+"Climate change","Mammal","Antagonistic",2,0.0555555555555556
+"Climate change","Mammal","Additive",34,0.944444444444444
+"Climate change","Reptile","Synergistic",0,0
+"Climate change","Reptile","Antagonistic",5,0.238095238095238
+"Climate change","Reptile","Additive",16,0.761904761904762
+"Disease","Amphibian","Synergistic",3,0.0454545454545455
+"Disease","Amphibian","Antagonistic",0,0
+"Disease","Amphibian","Additive",63,0.954545454545455
+"Disease","Bird","Synergistic",0,0
+"Disease","Bird","Antagonistic",9,0.107142857142857
+"Disease","Bird","Additive",75,0.892857142857143
+"Disease","Mammal","Synergistic",0,0
+"Disease","Mammal","Antagonistic",9,0.176470588235294
+"Disease","Mammal","Additive",42,0.823529411764706
+"Disease","Reptile","Synergistic",0,0
+"Disease","Reptile","Antagonistic",0,0
+"Disease","Reptile","Additive",21,1
+"Exploitation","Amphibian","Synergistic",3,0.0714285714285714
+"Exploitation","Amphibian","Antagonistic",3,0.0714285714285714
+"Exploitation","Amphibian","Additive",36,0.857142857142857
+"Exploitation","Bird","Synergistic",0,0
+"Exploitation","Bird","Antagonistic",15,0.147058823529412
+"Exploitation","Bird","Additive",87,0.852941176470588
+"Exploitation","Fish","Synergistic",0,0
+"Exploitation","Fish","Antagonistic",16,0.313725490196078
+"Exploitation","Fish","Additive",35,0.686274509803922
+"Exploitation","Mammal","Synergistic",0,0
+"Exploitation","Mammal","Antagonistic",6,0.08
+"Exploitation","Mammal","Additive",69,0.92
+"Exploitation","Reptile","Synergistic",0,0
+"Exploitation","Reptile","Antagonistic",13,0.196969696969697
+"Exploitation","Reptile","Additive",53,0.803030303030303
+"Habitat loss","Amphibian","Synergistic",0,0
+"Habitat loss","Amphibian","Antagonistic",3,0.0526315789473684
+"Habitat loss","Amphibian","Additive",54,0.947368421052632
+"Habitat loss","Bird","Synergistic",0,0
+"Habitat loss","Bird","Antagonistic",12,0.1
+"Habitat loss","Bird","Additive",108,0.9
+"Habitat loss","Fish","Synergistic",0,0
+"Habitat loss","Fish","Antagonistic",17,0.283333333333333
+"Habitat loss","Fish","Additive",43,0.716666666666667
+"Habitat loss","Mammal","Synergistic",0,0
+"Habitat loss","Mammal","Antagonistic",8,0.0860215053763441
+"Habitat loss","Mammal","Additive",85,0.913978494623656
+"Habitat loss","Reptile","Synergistic",0,0
+"Habitat loss","Reptile","Antagonistic",13,0.254901960784314
+"Habitat loss","Reptile","Additive",38,0.745098039215686
+"Invasive","Amphibian","Synergistic",3,0.0833333333333333
+"Invasive","Amphibian","Antagonistic",0,0
+"Invasive","Amphibian","Additive",33,0.916666666666667
+"Invasive","Bird","Synergistic",0,0
+"Invasive","Bird","Antagonistic",21,0.205882352941176
+"Invasive","Bird","Additive",81,0.794117647058823
+"Invasive","Fish","Synergistic",0,0
+"Invasive","Fish","Antagonistic",9,0.25
+"Invasive","Fish","Additive",27,0.75
+"Invasive","Mammal","Synergistic",0,0
+"Invasive","Mammal","Antagonistic",0,0
+"Invasive","Mammal","Additive",57,1
+"Invasive","Reptile","Synergistic",0,0
+"Invasive","Reptile","Antagonistic",8,0.380952380952381
+"Invasive","Reptile","Additive",13,0.619047619047619
+"Pollution","Amphibian","Synergistic",0,0
+"Pollution","Amphibian","Antagonistic",3,0.0714285714285714
+"Pollution","Amphibian","Additive",39,0.928571428571429
+"Pollution","Bird","Synergistic",0,0
+"Pollution","Bird","Antagonistic",9,0.0967741935483871
+"Pollution","Bird","Additive",84,0.903225806451613
+"Pollution","Fish","Synergistic",0,0
+"Pollution","Fish","Antagonistic",14,0.666666666666667
+"Pollution","Fish","Additive",7,0.333333333333333
+"Pollution","Mammal","Synergistic",0,0
+"Pollution","Mammal","Antagonistic",6,0.1
+"Pollution","Mammal","Additive",54,0.9
+"Pollution","Reptile","Synergistic",0,0
+"Pollution","Reptile","Antagonistic",0,0
+"Pollution","Reptile","Additive",36,1

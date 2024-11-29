@@ -9,8 +9,6 @@
 #' 
 #' @examples
 #' post_draws <- threat_post_draws(model = brms_mod1, threat_comns = c("none","climatechange","pollution.habitatl","climatechange + invasive"))
-require(foreach)
-source("Code/utils/prep_data_grid_fn.R")
 
 threat_post_draws <- function(model, threat_comns, ndraws = NULL, n.cores = 4, ...){
   
