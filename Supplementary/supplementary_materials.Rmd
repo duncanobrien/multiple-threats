@@ -60,6 +60,7 @@ source("../Code/utils/prep_data_grid_fn.R")
 source("../Code/utils/threat_post_draws.R")
 source("../Code/utils/threat_counterfac_draws.R")
 source("../Code/utils/threat_counterfac_pred.R")
+source("../Code/utils/pp_check_re_fn.R")
 
 dd_long <- readRDS("LivingPlanetData2.RDS")
 
@@ -133,7 +134,7 @@ mod_ls_diag <- list(mod_glob, m_fr, m_mar, m_ter, m_am, m_bi, m_f, m_ma, m_rep)
 
 # Appendix S1: Extended methods
 
-```{r fig1a, fig.height=6, fig.width=10, fig.cap="Demonstration of the threat classification protocol. (a) Trends are first predicted for each threat in additive or interactive combinations. (b) If the difference between predicted interactive trends and additive trends is calculated, there are three possible classes: additive (no difference predictions made by additive and interacting threats), antagonistic (interacting threat predictions are less negative than additive predictions), or synergistic (interacting threat predictions are more negative than additive predictions). Classes are defined using the 80% credible interval. We consider that a synergy 'worsens' trends -  i.e. becomes more negative. (c) The actual difference between predictions made in panel a."}
+```{r fig1a, fig.height=6, fig.width=10, fig.cap="Demonstration of the threat classification protocol. (a) Trends are first predicted for each threat in additive or interactive combinations. (b) When the difference between predicted interactive trends and additive trends is calculated, there are three possible classes: additive (no difference in predictions made by additive and interacting threats), antagonistic (interacting threat predictions are less negative than additive predictions), or synergistic (interacting threat predictions are more negative than additive predictions). Classes are defined using the 80% credible interval. We consider that a synergy 'worsens' trends -  i.e. becomes more negative. (c) The actual difference between predictions made in panel a."}
 intvadd_eg <- tribble(
   ~ int_class,
   ~ .value,
@@ -2537,7 +2538,8 @@ cowplot::plot_grid(
 color_scheme_set("darkgray")
 
 p5a <- lapply(mod_ls_diag, function(m) {
-  pp_check(m, ndraws = 100) +
+  #pp_check(m, ndraws = 100) +
+  pp_check_re(m, ndraws = 100, incl_autocor = FALSE) +
     scale_x_continuous(labels = scales::number_format(accuracy = 0.01),
                        limits = c(-5, 5))
 })
