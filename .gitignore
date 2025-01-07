@@ -6,3 +6,6 @@
 .httr-oauth
 .DS_Store
 .quarto
+/Data/LivingPlanetData2.RData
+/Data/data_models.RData
+/Supplementary/LivingPlanetData2.RData
