@@ -18,7 +18,7 @@
 
 8.  [*Figure2.R*](Figure2.R) - generate Figure 2: coefficient estimates from the [*global model*](GlobalModel.R).
 
-9.  [*Figure3.R*](Figure3.R) - generate Figure 3: estimate proportion of interactive vs additive threat influences. A diagrammatic example of the process is available in the [*supplementary information*](https://github.com/duncanobrien/multiple_threats/tree/main/Supplementary/supplementary_materials.pdf).
+9.  [*Figure3.R*](Figure3.R) - generate Figure 3: estimate proportion of interactive vs additive threat influences. A diagrammatic example of the process is available in the [*supplementary information*](https://github.com/duncanobrien/multiple-threats/tree/main/Supplementary/supplementary_materials.pdf).
 
 10. [*Figure4.R*](Figure4.R) - generate Figure 4: boxplot of counterfactual effect of removing each threat.
 
@@ -32,6 +32,6 @@
 
 ## Supporting functions
 
-The [utilities folder](https://github.com/duncanobrien/multiple_threats/tree/master/Code/utils) contains supporting functions used in the primary workflow scripts.
+The [utilities folder](https://github.com/duncanobrien/multiple-threats/tree/master/Code/utils) contains supporting functions used in the primary workflow scripts.
 
-The [archive folder](https://github.com/duncanobrien/multiple_threats/tree/master/Code/archive) contains previous script versions in case historic code is useful.
+The [archive folder](https://github.com/duncanobrien/multiple-threats/tree/master/Code/archive) contains previous script versions in case historic code is useful.
