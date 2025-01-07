@@ -1,4 +1,4 @@
-# multidim-wp1 Code
+# Code
 
 ## Recommended code workflow and script overview
 
