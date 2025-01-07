@@ -67,7 +67,7 @@ load("Data/data_models.RData")
 
 # Filter the data to unique time series
 
-data <- mod_dat_full %>% distinct(ID, .keep_all = T)
+plot_data <- mod_dat_full %>% distinct(ID, .keep_all = T) %>% drop_na(y_centered)
 
 # Figure 1: Map and trends #####################################################
 ## Map -------------------------------------------------------------------------
@@ -78,96 +78,86 @@ world <- map_data("world")
 
 # Create map
 
-(
-  g1a <- ggplot() +
-    geom_map(
-      map = world,
-      data = world,
-      aes(long, lat, map_id = region),
-      color = "gray80",
-      fill = "gray80",
-      linewidth = 0.3
-    ) +
-    #coord_proj("+proj=wintri") +
-    theme_map() +
-    geom_point(
-      data = data,
-      aes(x = Longitude, y = Latitude, fill = Taxon),
-      alpha = 0.5,
-      shape = 21,
-      size = 3
-    ) +
-    scale_y_continuous(limits = c(-80, 80)) +
-    scale_fill_manual("", values = taxon_pal) +
-    guides(fill = guide_legend(
-      nrow = 2,
-      byrow = TRUE,
-      override.aes = list(alpha = 1)
-    )) +
-    expand_limits(x = 0, y = 0) +
-    theme(
-      legend.position = "bottom",
-      legend.direction = "horizontal",
-      legend.title = element_text(size = 12, hjust = 0.5),
-      legend.text = element_text(size = 10),
-      plot.margin = unit(c(0, -.5, 0, 0), units = , "cm")
-    )
-)
+g1a <- ggplot() +
+  geom_map(
+    map = world,
+    data = world,
+    aes(long, lat, map_id = region),
+    color = "gray80",
+    fill = "gray80",
+    linewidth = 0.3
+  ) +
+  #coord_proj("+proj=wintri") +
+  theme_map() +
+  geom_point(
+    data = plot_data,
+    aes(x = Longitude, y = Latitude, fill = Taxon),
+    alpha = 0.5,
+    shape = 21,
+    size = 3
+  ) +
+  scale_y_continuous(limits = c(-80, 80)) +
+  scale_fill_manual("", values = taxon_pal) +
+  guides(fill = guide_legend(
+    nrow = 2,
+    byrow = TRUE,
+    override.aes = list(alpha = 1)
+  )) +
+  expand_limits(x = 0, y = 0) +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.title = element_text(size = 12, hjust = 0.5),
+    legend.text = element_text(size = 10),
+    plot.margin = unit(c(0, -.5, 0, 0), units = , "cm")
+  )
 
 # Legend
-
 legend1 <- cowplot::get_plot_component(g1a, 'guide-box-top', return_all = TRUE)
 
 # Create distribution 1
-
 anot <- data.frame(
-  x = median(data$Duration),
+  x = median(plot_data$Duration),
   y = 300,
-  label = paste("Median = ", median(data$Duration))
+  label = paste("Median = ", median(plot_data$Duration))
 )
 
+gd1 <- plot_data %>%
+  ggplot() +
+  geom_histogram(
+    aes(x = Duration),
+    binwidth = 2,
+    alpha = .6,
+    position = "stack",
+    fill = "grey40",
+    color = "white"
+  ) +
+  geom_vline(
+    aes(xintercept = median(Duration)),
+    linetype = "longdash",
+    linewidth = 0.5
+  ) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_continuous(breaks = seq(10, 60, 10), expand = c(0, 0)) +
+  ggrepel::geom_text_repel(
+    data = anot,
+    aes(x = x, y = y + 100, label = label),
+    nudge_x = 10,
+    nudge_y = 0
+  ) +
+  labs(x = "Duration (years)", y = "Number of datasets") +
+  theme(
+    axis.title.x = element_text(margin = margin(t = 0)),
+    axis.text.y = element_text(margin = margin(r = 0))
+  )
 
-(
-  gd1 <- data %>%
-    ggplot() +
-    geom_histogram(
-      aes(x = Duration),
-      binwidth = 2,
-      alpha = .6,
-      position = "stack",
-      fill = "grey40",
-      color = "white"
-    ) +
-    geom_vline(
-      aes(xintercept = median(Duration)),
-      linetype = "longdash",
-      linewidth = 0.5
-    ) +
-    scale_y_continuous(expand = c(0, 0)) +
-    scale_x_continuous(breaks = seq(10, 60, 10), expand = c(0, 0)) +
-    ggrepel::geom_text_repel(
-      data = anot,
-      aes(x = x, y = y + 100, label = label),
-      nudge_x = 10,
-      nudge_y = 0
-    ) +
-    labs(x = "Duration (years)", y = "Number of datasets") +
-    theme(
-      axis.title.x = element_text(margin = margin(t = 0)),
-      axis.text.y = element_text(margin = margin(r = 0))
-    )
-)
-
-
-# Combined map
-
-(g1a <- ggdraw(g1a + theme(legend.position.inside = c(0.40, 0.08))) +
-    draw_plot(
-      gd1,
-      x = -0.32,
-      y = -0.3143,
-      scale = 0.35
-    ))
+g1a <- ggdraw(g1a + theme(legend.position = c(0.40, 0.08))) +
+  draw_plot(
+    gd1,
+    x = -0.32,
+    y = -0.3143,
+    scale = 0.35
+  )
 
 ## Panel b: threat proportions ------------------------
 
@@ -258,12 +248,13 @@ palette <- data.frame(
     scale_y_continuous(
       breaks = seq(0, 1, .1),
       label = scales::percent,
-      expand = c(0, 0)
+      expand = c(0, 0),
+      limits = c(0,0.33),
     ) +
     labs(y = "Proportion of threats (%)", x = "", fill = "") +
-    # geom_text(aes(label = paste0(round(freq*100, 0), "%")),
-    #           size=5,
-    #           position = position_stack(vjust = 0.5)) +
+    geom_text(aes(label = paste0(round(freq*100, 0), "%"),),
+              size=5,
+              position = position_nudge(y = 0.01)) +
     theme(
       legend.position = "bottom",
       legend.text = element_text(size = 12),
