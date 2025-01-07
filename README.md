@@ -4,7 +4,7 @@ Processed data, code and results from : Capdevila P., O’Brien D.A., Marconi V.
 
 ## Repository layout
 
-[*entire_workflow_html*](entire_workflow_html) - html document detailing the entire analysis workflow, with code and rendered figures.
+[*entire_workflow.html*](entire_workflow.html) - html document detailing the entire analysis workflow, with code and rendered figures.
 
 [*Code*](Code) - R scripts for data preprocessing, model fitting, and manuscript figures (separate script files for each figure).
 
