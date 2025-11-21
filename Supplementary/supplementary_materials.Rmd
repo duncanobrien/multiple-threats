@@ -1,5 +1,7 @@
 ---
-title: "Halting predicted vertebrate declines requires tackling multiple drivers of biodiversity loss"
+title:  |
+  | Supplementary Materials for </center>
+  | Halting predicted vertebrate declines requires tackling multiple drivers of biodiversity loss
 author: 
   - Pol Capdevila$^{1,2,3,*}$
   - Duncan A. O’Brien$^{1,*}$
@@ -21,8 +23,8 @@ header-includes:
    -   \newcommand{\beginsupplement}{\setcounter{table}{0}  \renewcommand{\thetable}{S\arabic{table}} \setcounter{figure}{0} \renewcommand{\thefigure}{S\arabic{figure}}}
 output: 
   pdf_document:
-    toc: true
-    number_sections: true
+    toc: false
+    number_sections: false
 ---
 
 ```{r setup, include=FALSE}
@@ -55,29 +57,29 @@ library(waffle)
 
 set.seed(43)
 
-source("../Code/utils/prepare_data_fn.R")
-source("../Code/utils/prep_data_grid_fn.R")
-source("../Code/utils/threat_post_draws.R")
-source("../Code/utils/threat_counterfac_draws.R")
-source("../Code/utils/threat_counterfac_pred.R")
-source("../Code/utils/pp_check_re_fn.R")
+source("Code/utils/prepare_data_fn.R")
+source("Code/utils/prep_data_grid_fn.R")
+source("Code/utils/threat_post_draws.R")
+source("Code/utils/threat_counterfac_draws.R")
+source("Code/utils/threat_counterfac_pred.R")
+source("Code/utils/pp_check_re_fn.R")
 
-dd_long <- readRDS("LivingPlanetData2.RDS")
+load("Data/LivingPlanetData2.RData")
 
 # Load the models
 
-m_fr <- read_rds("../Results/models/fre_mod.RDS")
-m_mar <- read_rds("../Results/models/mar_mod.RDS")
-m_ter <- read_rds("../Results/models/ter_mod.RDS")
-m_am <- read_rds("../Results/models/amph_mod.RDS")
-m_bi <- read_rds("../Results/models/bir_mod.RDS")
-m_f <- read_rds("../Results/models/fish_mod.RDS")
-m_ma <- read_rds("../Results/models/mam_mod.RDS")
-m_rep <- read_rds("../Results/models/rep_mod.RDS")
+m_fr <- read_rds("Results/models/fre_mod.RDS")
+m_mar <- read_rds("Results/models/mar_mod.RDS")
+m_ter <- read_rds("Results/models/ter_mod.RDS")
+m_am <- read_rds("Results/models/amph_mod.RDS")
+m_bi <- read_rds("Results/models/bir_mod.RDS")
+m_f <- read_rds("Results/models/fish_mod.RDS")
+m_ma <- read_rds("Results/models/mam_mod.RDS")
+m_rep <- read_rds("Results/models/rep_mod.RDS")
 
-mod_glob40 <- readRDS("../Results/models/mod_global_40.RDS")
-mod_glob20 <- readRDS("../Results/models/mod_global_20.RDS")
-mod_glob <- readRDS("../Results/models/mod_global_rerun.RDS")
+mod_glob40 <- readRDS("Results/models/mod_global_40.RDS")
+mod_glob20 <- readRDS("Results/models/mod_global_20.RDS")
+mod_glob <- readRDS("Results/models/mod_global_rerun.RDS")
 
 mod_dat_full <- prepare_data(dd_long, duration = 10, ratio = 0.5)
 
@@ -130,9 +132,13 @@ threat_palette <- c(met.brewer(name = "Hokusai1", n = 6, type = "continuous"))
 mod_ls_diag <- list(mod_glob, m_fr, m_mar, m_ter, m_am, m_bi, m_f, m_ma, m_rep)
 ```
 
-\newpage
+### This PDF file includes:
 
-# Appendix S1: Extended methods
+Figures S1 to S17
+
+Tables S1 to S6
+
+\newpage
 
 ```{r fig1a, fig.height=6, fig.width=10, fig.cap="Demonstration of the threat classification protocol. (a) Trends are first predicted for each threat in additive or interactive combinations. (b) When the difference between predicted interactive trends and additive trends is calculated, there are three possible classes: additive (no difference in predictions made by additive and interacting threats), antagonistic (interacting threat predictions are less negative than additive predictions), or synergistic (interacting threat predictions are more negative than additive predictions). Classes are defined using the 80% credible interval. We consider that a synergy 'worsens' trends -  i.e. becomes more negative. (c) The actual difference between predictions made in panel a."}
 intvadd_eg <- tribble(
@@ -347,21 +353,6 @@ intvadd_p3 <- ggplot(data = intvadd_diff %>%
   theme(plot.tag = element_text(face = "bold"),
         legend.position = "bottom")
 
-```
-
-\newpage
-
-# Appendix S2: Extended results
-
-```{r tableS3a}
-tableS1 <- describe_posterior(mod_glob) %>%
-  select(-c(pd, CI, ROPE_CI, ROPE_low, ROPE_high, ROPE_Percentage)) %>%
-  mutate(Parameter = gsub("b_", "", Parameter)) %>%
-  mutate(across(Median:CI_high, ~ round(., digits = 3))) %>%
-  mutate(across(Rhat:ESS, ~ round(., digits = 2)))
-
-kable(tableS1, row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Model coefficents for global population trends. Median represents the median of the posterior distribution. CI low and high are the lower and higher values of the 95\\% credible interval. Rhat is the ratio of the effective sample size to the overall number of iterations, with values close to one indicating convergence values") %>%
-   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
 ```
 
 \newpage
@@ -694,24 +685,6 @@ cowplot::plot_grid(
 
 \newpage
 
-```{r tableS3b}
-tableS2 <- lapply(seq_along(system_ls), function(mod) {
-  describe_posterior(system_ls[[mod]]) %>%
-    select(-c(pd, CI, ROPE_CI, ROPE_low, ROPE_high, ROPE_Percentage)) %>%
-    mutate(Parameter = gsub("b_", "", Parameter)) %>%
-    mutate(across(Median:CI_high, ~ round(., digits = 3))) %>%
-    mutate(across(Rhat:ESS, ~ round(., digits = 2))) %>%
-    mutate(System = names(system_ls)[[mod]], .before = Parameter)
-}) %>%
-  bind_rows() %>%
-  arrange(System)
-
-kable(tableS2, row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Model coefficents for global population trends across systems. Median represents the median of the posterior distribution. CI low and high are the lower and higher values of the 95\\% credible interval. Rhat is the ratio of the effective sample size to the overall number of iterations, with values close to one indicating convergence values.") %>%
-   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
-```
-
-\newpage
-
 ```{r figS3c, fig.height=8, fig.width=14, fig.cap="Effects of threats on vertebrate population trends across taxa. 95 % credible intervals of the effects of single and interacting threats upon (a) amphibian, (b) bird, (c) fish, (d) mammalian, and (e) reptilian time series trends. The dashed vertical line shows zero influence – i.e., no effect of the factors – while the None parameter is the trend in the absence of threats. The remaining parameters represent modifications of this None trend. The credible intervals are based on 1,000 samples from the posterior distribution of the model coefficients"}
 all_threats <- c(
   "None",
@@ -859,7 +832,7 @@ cowplot::plot_grid(
 
 \newpage
 
-```{r figS3d, fig.height=14, fig.width=13, messages = FALSE,fig.cap="Ultimate effect of threats on vertebrate population trends across taxa. 95 % credible intervals of ultimate estimated trends in the presence of single and interacting threats for (a) amphibian, (b) bird, (c) fish, (d) mammalian, and (e) reptilian. The dashed horizontal line shows the zero-slope – i.e., no effect of the factors. The credible intervals are based on 1,000 samples from the posterior distribution of the model predictions where threats are included/excluded from the model matrix."}
+```{r figS3d, fig.height=12, fig.width=13, messages = FALSE,fig.cap="Ultimate effect of threats on vertebrate population trends across taxa. 95 % credible intervals of ultimate estimated trends in the presence of single and interacting threats for (a) amphibian, (b) bird, (c) fish, (d) mammalian, and (e) reptilian. The dashed horizontal line shows the zero-slope – i.e., no effect of the factors. The credible intervals are based on 1,000 samples from the posterior distribution of the model predictions where threats are included/excluded from the model matrix."}
 threats <- c("pollution",
              "habitatl",
              "climatechange",
@@ -1040,24 +1013,6 @@ cowplot::plot_grid(
 
 \newpage
 
-```{r tableS3c}
-tableS3 <- lapply(seq_along(taxon_ls), function(mod) {
-  describe_posterior(taxon_ls[[mod]]) %>%
-    select(-c(pd, CI, ROPE_CI, ROPE_low, ROPE_high, ROPE_Percentage)) %>%
-    mutate(Parameter = gsub("b_", "", Parameter)) %>%
-    mutate(across(Median:CI_high, ~ round(., digits = 3))) %>%
-    mutate(across(Rhat:ESS, ~ round(., digits = 2))) %>%
-    mutate(Taxon = names(taxon_ls)[[mod]], .before = Parameter)
-}) %>%
-  bind_rows() %>%
-  arrange(Taxon)
-
-kable(tableS3, row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Model coefficents for global population trends across taxa. Median represents the median of the posterior distribution. CI low and high are the lower and higher values of the 95\\% credible interval. Rhat is the ratio of the effective sample size to the overall number of iterations, with values close to one indicating convergence values.") %>%
-   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
-```
-
-\newpage
-
 ```{r figS5a, fig.height=8, fig.width=10, messages = FALSE,fig.cap="Definition of interacting threat classes using 1000 posterior draws estimated from additive vs interacting model matrices. The difference between additive and interacting trend posteriors is calculated with zero differences assumed to be additive. If the 80 \\% credible interval does not intersect 0, and is negative, then that threat combination is assumed to be synergistic, whereas if positive, the combination is classified as antagonistic."}
 
 all_threats <- c("pollution",
@@ -1194,40 +1149,6 @@ ggplot(data = diff,
   xlab( expression(paste("Additive ",Delta,"y","/",Delta,"x"," - interactive ",Delta,"y","/",Delta,"x"))) + 
   ylab("Threat combination") +
   theme(legend.position = "none")
-```
-
-\newpage
-
-```{r tableS5a}
-# Calculate the proportions
-
-tableS4 <- post_interval_intvadd_diff %>%
-  separate_rows(threats, sep = "\\.") %>%
-  mutate(interaction.type = factor(
-    interaction.type,
-    levels = c("synergistic", "antagonistic", "additive"),
-    labels = c("Synergistic", "Antagonistic", "Additive")
-  )) %>%
-  group_by(threats, interaction.type) %>%
-  summarise(n = n()) %>%
-  ungroup() %>%
-  complete(threats, interaction.type) %>%
-  group_by(threats) %>%
-  mutate(n = replace_na(n, 0), freq = (n / sum(n))) %>%
-  ungroup() %>%
-  mutate(threats = str_to_title(threats)) %>%
-  mutate(
-    threats = case_when(
-      threats %in% "Climatechange" ~ "Climate change",
-      threats %in% "Habitatl" ~ "Habitat loss",
-      TRUE ~ threats
-    )
-  ) %>%
-  setNames(c("Threat", "Interaction type", "n", "Frequency"))
-
-kable(tableS4 |> 
-        dplyr::mutate(Frequency = round(Frequency,digits = 3)), row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Proportion of threat interaction types estimated by the global model. n represents the number of interaction types present. Frequency represents the proportion of that given interaction type for that threat and system.") %>%
-   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
 ```
 
 \newpage
@@ -1441,16 +1362,7 @@ taxon_waffle / taxon_legend + plot_layout(heights = c(1, .1))
 
 \newpage
 
-```{r tableS5c}
-
-kable(tableS6 |> 
-        dplyr::mutate(Frequency = round(Frequency,digits = 3)), row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Proportion of threat interaction types across taxa. n represents the number of interaction types present. Frequency represents the proportion of that given interaction type for that threat and taxa") %>%
-   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
-```
-
-\newpage
-
-```{r fig5b, fig.height=7, fig.width=8, fig.cap="Spread of interactive effects across threats and systems."}
+```{r fig5b, fig.height=6, fig.width=7, fig.cap="Spread of interactive effects across threats and systems."}
 
 tableS5 <- lapply(seq_along(system_ls), function(mod) {
   # Extract column names from the model
@@ -1650,10 +1562,134 @@ system_waffle / system_legend + plot_layout(heights = c(1, .1))
 
 \newpage
 
-```{r tableS5b}
-kable(tableS5 |> 
-        dplyr::mutate(Frequency = round(Frequency,digits = 3)), row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Proportion of threat interaction types across systems. n represents the number of interaction types present. Frequency represents the proportion of that given interaction type for that threat and system.") %>%
-   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
+```{r figwaffle, fig.height=6, fig.width=5, messages = FALSE,fig.cap="Demonstration of how changing the credible interval from 50 to 95% alters the classification of each threat combination."}
+
+post_interval_intvadd_diffW <- post_intvadd_diff %>%
+  na.omit() %>%
+  group_by(threat_group, threats) %>%
+  ggdist::median_qi(.width = c(.95, .5), .exclude = c(".draw")) %>%
+  mutate(
+    interaction.type = factor(case_when(
+      .upper < 0 ~ "synergistic",
+      .lower > 0 ~ "antagonistic",
+      TRUE ~ "additive"
+    ),
+    levels = c("synergistic", "antagonistic", "additive"))
+  )
+
+# Calculate the proportions
+
+data_adW <- post_interval_intvadd_diffW %>%
+  separate_rows(threats, sep = "\\.") %>%
+  mutate(interaction.type = factor(
+    interaction.type,
+    levels = c("synergistic", "additive", "antagonistic")
+  )) %>%
+  group_by(threats, interaction.type,.width) %>%
+  summarise(n = n()) %>%
+  ungroup() %>%
+  complete(threats, interaction.type,.width) %>%
+  group_by(threats,.width) %>%
+  mutate(n = replace_na(n, 0), freq = (n / sum(n))) %>%
+  ungroup()
+
+## Panel a: Waffle plot proportions --------------------------------------------
+
+# We will have to create a separate legend because not all levels are shown given
+# that no synergies were found
+
+# Create the base data
+
+dataW <- data_adW %>%
+  mutate(
+    freq = freq * 100,
+    interaction.type = gsub("synergistic", "Synergistic", interaction.type),
+    interaction.type = gsub("additive", "Additive", interaction.type),
+    interaction.type = gsub("antagonistic", "Antagonistic", interaction.type),
+    interaction.type = fct_relevel(interaction.type, c("Synergistic", "Antagonistic", "Additive")),
+    threats = gsub("invasive", "Invasive", threats),
+    threats = gsub("habitatl", "Habitat loss", threats),
+    threats = gsub("climatechange", "Climate change", threats),
+    threats = gsub("pollution", "Pollution", threats),
+    threats = gsub("exploitation", "Exploitation", threats),
+    threats = gsub("disease", "Disease", threats),
+    threats = as.factor(threats)
+  )
+
+# Create a fake data with synergies and plot it
+
+legendW <- cowplot::get_plot_component(
+  dataW %>%
+    mutate(freq = ifelse(freq == 0, 1, freq)) %>%
+    ggplot(aes(fill = interaction.type, values =
+                 freq)) +
+    geom_waffle(
+      color = "white",
+      size = .25,
+      n_rows = 10,
+      flip = TRUE,
+      na.rm = F,
+      make_proportional = T,
+      show.legend = TRUE
+    ) +
+    facet_grid(threats ~ .width) +
+    scale_x_discrete() +
+    scale_y_continuous(
+      labels = function(x)
+        x * 10,
+      # make this multiplyer the same as n_rows
+      expand = c(0, 0)
+    ) +
+    scale_fill_manual(
+      name = NULL,
+      values = c("#B32315", "#1E63B3", "#694364")
+    ) +
+    coord_equal(clip = "off") +
+    theme_void(base_size = 8) +
+    theme(
+      legend.position = "top",
+      legend.text = element_text(size =
+                                   12),
+      strip.text = element_text(size =
+                                  14),
+      plot.margin = margin(-10, 0, -10, 0)
+    ),
+  'guide-box-top',
+  return_all = TRUE
+)
+
+# Make the plot
+
+gWa <- ggplot(dataW, aes(fill = interaction.type, values = freq)) +
+    geom_waffle(
+      color = "white",
+      size = .25,
+      n_rows = 10,
+      flip = TRUE,
+      na.rm = F,
+      make_proportional = T,
+      show.legend = TRUE
+    ) +
+    facet_grid(threats ~ .width) +
+    scale_x_discrete() +
+    scale_y_continuous(
+      labels = function(x)
+        x * 10,
+      # make this multiplyer the same as n_rows
+      expand = c(0, 0)
+    ) +
+    scale_fill_manual(name = NULL, values = c("#1E63B3", "#694364")) +
+    coord_equal(clip = "off") +
+    theme_void(base_size = 8) +
+    theme(
+      legend.position = "none",
+      legend.text = element_text(size = 12),
+      strip.text = element_text(size = 14),
+      plot.margin = margin(0, 0, 0, 0)
+    )
+
+gWa / legendW + plot_layout(heights = c(1, .1))
+
 ```
 
 \newpage
@@ -2433,7 +2469,184 @@ figureS10a + figureS10b + figureS10c +
 
 \newpage
 
-# Appendix S3: Model checks
+```{r figShaversine, fig.height=4, fig.width=6, messages = FALSE,fig.cap="Influence of rounding latitude to the nearest degree upon the estimated distance between Living Planet Databse sites"}
+dd_long2 <- dd_long %>%
+  group_by(ID) %>%  
+  # Calculate population change
+  mutate(popchange=log(Count+(max(Count, na.rm=T) /100)),
+         Protected_status=gsub(" .*", "", Protected_status)) %>% 
+  # Remove any groupings we have created in the pipe
+  ungroup()
+
+# Filter for ten or more years of data with at least 50% of the years with records
+
+dd_final <- dd_long2 %>%
+  group_by(ID) %>%
+  drop_na(popchange) %>%
+  mutate(n = n(),
+         Duration=(max(Year)-min(Year))+1,
+         ratio=n/Duration) %>% 
+  ungroup() %>% 
+  filter(Duration>9,
+         ratio>=0.5) 
+
+# Spread the data again
+
+pops <- dd_final %>%
+  mutate(year = as.factor(as.character(Year))) %>% 
+  dplyr::select(ID, SpeciesName, Class, Order,
+                System, Latitude, Longitude,
+                Region,
+                Protected_status, n.threat, 
+                Primary_threat,
+                Secondary_threat,
+                Tertiary_threat,
+                Managed,
+                threats, Duration, 
+                Year, year, popchange) %>%
+  drop_na(popchange) %>%
+  group_by(ID) %>%
+  dplyr::select(-Year) %>%
+  pivot_wider(names_from = year, values_from = popchange)
+
+# Create threat combinations
+
+thrts_2 <-combn(c("pollution","habitatl","climatechange","invasive", 
+                  "exploitation","disease"),2)
+thrts_3 <-combn(c("pollution","habitatl","climatechange",
+                  "invasive", "exploitation","disease"),3) 
+
+# Further wrangling in to long format and prepare explanatory variables
+
+mod_dat_full_unrounded <- pops %>%
+  pivot_longer(c("1950":"2019"), 
+               names_to = "year", 
+               values_to = "y") %>%
+  mutate(year = as.numeric(year),
+         series = paste(ID), #factor required for autocorrelation estimation
+         threats = factor(ifelse(is.na(threats),"none",threats))) %>% #convert stressors to binary
+  mutate(threats = fct_relevel(threats, "none")) %>%
+  left_join(dplyr::select(dd_final,c(ID,pollution,habitatl,climatechange,
+                                     invasive, exploitation,disease)),
+            multiple = "first",by = "ID") %>% 
+  mutate(none = ifelse(all(is.na(c(pollution,habitatl,climatechange,
+                                   invasive, exploitation,disease))),
+                       "none",NA)) %>%
+  mutate(across(pollution:none,~ifelse(is.na(.x),"0","1"))) %>% #convert absence of stress to binary
+  drop_na(y) %>% 
+  group_by(ID) %>%
+  mutate(scaled_year = c(scale(year,center = TRUE,scale = FALSE)), #center time to 0 for each timeseries
+         time = seq_along(year),
+         scaled_time = c(scale(time,center = TRUE,scale = FALSE)),
+         #y_centered = y-(na.omit(y)[1]-0) #recenter y so that first value of timeseries is 0 (to allow all intercepts to be removed)
+         y_centered = c(scale(y,center = TRUE,scale = FALSE)) #recenter y so that first value of timeseries is 0 (to allow all intercepts to be removed)
+  ) %>% 
+  ungroup(ID) %>%
+  mutate(threats = as.character(threats)) %>%
+  mutate(Taxon= ifelse(Class=="Holocephali"|Class=="Elasmobranchii" | 
+                         Class=="Myxini"|Class=="Cephalaspidomorphi"|
+                         Class=="Actinopterygii"|Class=="Sarcopterygii",
+                       "Fish", 
+                       ifelse(Class=="Aves", "Birds",
+                              ifelse(Class=="Mammalia", 
+                                     "Mammals",
+                                     ifelse(Class=="Amphibia", 
+                                            "Amphibians",
+                                            ifelse(Class=="Reptilia",
+                                                   "Reptiles", "NA"))))))  %>% 
+  bind_cols(purrr::pmap_dfc(.l = list(.x = thrts_2[1,], #threat 1
+                                      .y = thrts_2[2,]),#threat 2
+                            ~ mod_dat_full %>%
+                              select({{.x}},{{.y}},ID) %>% #select just the necessary columns (threat 1, threat 2 and timeseries ID)
+                              mutate(!!sym(paste(.x,.y,sep=".")) :=  
+                                       ifelse(all(!!sym(.x) == "1") & all(!!sym(.y) == "1"),"1","0"),
+                                     .by = ID) %>% #dynamically create new column of whether both threat 1 and threat 2 are 1's
+                              select(4))%>%
+              select_if(function(x)sum(x == "1") > 0) #drop columns where no observed combination of threats as will prevent model fitting
+  ) %>%
+  bind_cols(purrr::pmap_dfc(.l = list(thrts_3[1,], #threat 1
+                                      thrts_3[2,], #threat 2
+                                      thrts_3[3,]),#threat 3
+                            function(.x,.y,.z) mod_dat_full %>%
+                              select({{.x}},{{.y}},{{.z}},ID) %>% #select just the necessary columns (threat 1, threat 2 and timeseries ID)
+                              mutate(!!sym(paste(.x,.y,.z,sep=".")) :=  
+                                       ifelse(all(!!sym(.x) == "1") & all(!!sym(.y) == "1") & all(!!sym(.z) == "1"),"1","0"),
+                                     .by = ID) %>% #dynamically create new column of whether both threat 1, threat 2 and threat 3 are 1's
+                              select(5)) %>%
+              select_if(function(x)sum(x == "1") > 0) #drop columns where no observed combination of threats
+  ) %>%
+  group_by(ID) %>% 
+  ungroup() %>%
+  select_if(function(x)!all(x == "0")) %>%
+  mutate(Site = paste(Latitude,Longitude,sep = "_")) %>% 
+  as.data.frame()
+
+mat_raw <- geosphere::distm(distinct(mod_dat_full_unrounded[,c("Longitude","Latitude")]), 
+                        fun = geosphere::distHaversine)
+diag(mat_raw) <- NA #want to ignore distance to self
+mat_raw <- mat_raw |>
+  as.data.frame() |>
+  tidyr::pivot_longer(dplyr::everything(),names_to = NULL,values_to = "dist") |>
+  dplyr::mutate(dist = dist/1000) |> 
+  na.omit()  |>
+  dplyr::mutate(datasource = "Unrounded")
+
+mat_rounded <- geosphere::distm(distinct(mod_dat_full[,c("Longitude","Latitude")]), 
+                        fun = geosphere::distHaversine)
+diag(mat_rounded) <- NA
+mat_rounded <- mat_rounded |>
+  as.data.frame() |>
+  tidyr::pivot_longer(dplyr::everything(),names_to = NULL,values_to = "dist") |>
+  dplyr::mutate(dist = dist/1000) |> 
+  na.omit() |>
+  dplyr::mutate(datasource = "Rounded")
+
+raw_ecdf <- ecdf(mat_raw$dist)
+rounded_ecdf <- ecdf(mat_rounded$dist)
+label_df <- data.frame(datasource = c("Unrounded", "Rounded"),
+                       x = 500, 
+                       y = 2e-5,
+                       quantile55 = c(raw_ecdf(55),rounded_ecdf(55))) |>
+  dplyr::mutate(label = paste0("55km =\n", round(quantile55,digits = 6)," percentile"))
+
+p_dist <- ggplot(rbind(mat_raw, mat_rounded) |>
+         dplyr::mutate(datasource = factor(datasource, levels = c("Unrounded","Rounded"))),
+       aes(x = dist)) + geom_density() +
+  geom_vline(xintercept = 55, color = "#1E63B3", linetype = "dashed") + 
+  geom_label(data = label_df,aes(x = x, y = y, label = label), color = "#1E63B3", hjust = 0) +
+  #annotate(geom= "label", x = 500, y = 9e-5,label = "55km", color = "#1E63B3") +
+  xlab("Distance between sites (km2)") +
+  ylab("Density") +
+  facet_wrap(~datasource) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(size = 12, margin = margin(
+      t = 10,
+      r = 0,
+      b = 0,
+      l = 0
+    )),
+    axis.title.y = element_text(size = 12, margin = margin(
+      t = 0,
+      r = 10,
+      b = 0,
+      l = 0
+    )),
+    axis.line.x = element_line(color = "black", linewidth = 0.5),
+    axis.line.y = element_line(color = "black", linewidth = 0.5),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(color = "black", size = 12),
+    axis.text.y = element_text(color = "black", size = 12),
+    strip.text.x = element_text(size = 12),
+    axis.ticks = element_line(color = "black"),
+    plot.title = element_text(hjust = 0.5),
+    plot.margin = unit(c(0, 0, 0, 0), "cm")
+  )
+p_dist
+```
+
+\newpage
 
 ```{r figS2a, cache = FALSE, autodep=FALSE, fig.height=8, fig.width=12, fig.cap="Distribution of the standardised residuals for the multilevel Bayesian models. Residuals were examined for the (a) general model, (b-d) system specific models (freshwater, marine, terrestrial), and (e-i) amphibians, birds, fishes, mammals, and reptiles respectively."}
 p3a <- lapply(mod_ls_diag, function(m) {
@@ -2570,6 +2783,106 @@ wrap_plots(p6a, nrow = 3) +
   plot_annotation(tag_levels = "a") &
   #labs(x = NULL, y = NULL) &
   theme(plot.tag = element_text(face = 'bold'))
+```
+
+\newpage
+
+```{r tableS3a}
+tableS1 <- describe_posterior(mod_glob) %>%
+  select(-c(pd, CI, ROPE_CI, ROPE_low, ROPE_high, ROPE_Percentage)) %>%
+  mutate(Parameter = gsub("b_", "", Parameter)) %>%
+  mutate(across(Median:CI_high, ~ round(., digits = 3))) %>%
+  mutate(across(Rhat:ESS, ~ round(., digits = 2)))
+
+kable(tableS1, row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Model coefficents for global population trends. Median represents the median of the posterior distribution. CI low and high are the lower and higher values of the 95\\% credible interval. Rhat is the ratio of the effective sample size to the overall number of iterations, with values close to one indicating convergence values") %>%
+   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
+```
+
+\newpage
+
+```{r tableS3b}
+tableS2 <- lapply(seq_along(system_ls), function(mod) {
+  describe_posterior(system_ls[[mod]]) %>%
+    select(-c(pd, CI, ROPE_CI, ROPE_low, ROPE_high, ROPE_Percentage)) %>%
+    mutate(Parameter = gsub("b_", "", Parameter)) %>%
+    mutate(across(Median:CI_high, ~ round(., digits = 3))) %>%
+    mutate(across(Rhat:ESS, ~ round(., digits = 2))) %>%
+    mutate(System = names(system_ls)[[mod]], .before = Parameter)
+}) %>%
+  bind_rows() %>%
+  arrange(System)
+
+kable(tableS2, row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Model coefficents for global population trends across systems. Median represents the median of the posterior distribution. CI low and high are the lower and higher values of the 95\\% credible interval. Rhat is the ratio of the effective sample size to the overall number of iterations, with values close to one indicating convergence values.") %>%
+   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
+```
+
+\newpage
+
+```{r tableS3c}
+tableS3 <- lapply(seq_along(taxon_ls), function(mod) {
+  describe_posterior(taxon_ls[[mod]]) %>%
+    select(-c(pd, CI, ROPE_CI, ROPE_low, ROPE_high, ROPE_Percentage)) %>%
+    mutate(Parameter = gsub("b_", "", Parameter)) %>%
+    mutate(across(Median:CI_high, ~ round(., digits = 3))) %>%
+    mutate(across(Rhat:ESS, ~ round(., digits = 2))) %>%
+    mutate(Taxon = names(taxon_ls)[[mod]], .before = Parameter)
+}) %>%
+  bind_rows() %>%
+  arrange(Taxon)
+
+kable(tableS3, row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Model coefficents for global population trends across taxa. Median represents the median of the posterior distribution. CI low and high are the lower and higher values of the 95\\% credible interval. Rhat is the ratio of the effective sample size to the overall number of iterations, with values close to one indicating convergence values.") %>%
+   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
+```
+
+\newpage
+
+```{r tableS5a}
+# Calculate the proportions
+
+tableS4 <- post_interval_intvadd_diff %>%
+  separate_rows(threats, sep = "\\.") %>%
+  mutate(interaction.type = factor(
+    interaction.type,
+    levels = c("synergistic", "antagonistic", "additive"),
+    labels = c("Synergistic", "Antagonistic", "Additive")
+  )) %>%
+  group_by(threats, interaction.type) %>%
+  summarise(n = n()) %>%
+  ungroup() %>%
+  complete(threats, interaction.type) %>%
+  group_by(threats) %>%
+  mutate(n = replace_na(n, 0), freq = (n / sum(n))) %>%
+  ungroup() %>%
+  mutate(threats = str_to_title(threats)) %>%
+  mutate(
+    threats = case_when(
+      threats %in% "Climatechange" ~ "Climate change",
+      threats %in% "Habitatl" ~ "Habitat loss",
+      TRUE ~ threats
+    )
+  ) %>%
+  setNames(c("Threat", "Interaction type", "n", "Frequency"))
+
+kable(tableS4 |> 
+        dplyr::mutate(Frequency = round(Frequency,digits = 3)), row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Proportion of threat interaction types estimated by the global model. n represents the number of interaction types present. Frequency represents the proportion of that given interaction type for that threat and system.") %>%
+   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
+```
+
+\newpage
+
+```{r tableS5c}
+
+kable(tableS6 |> 
+        dplyr::mutate(Frequency = round(Frequency,digits = 3)), row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Proportion of threat interaction types across taxa. n represents the number of interaction types present. Frequency represents the proportion of that given interaction type for that threat and taxa") %>%
+   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
+```
+
+\newpage
+
+```{r tableS5b}
+kable(tableS5 |> 
+        dplyr::mutate(Frequency = round(Frequency,digits = 3)), row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Proportion of threat interaction types across systems. n represents the number of interaction types present. Frequency represents the proportion of that given interaction type for that threat and system.") %>%
+   kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
 ```
 
 \newpage
