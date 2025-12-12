@@ -5,8 +5,8 @@ title:  |
 author: 
   - Pol Capdevila$^{1,2,3,*}$
   - Duncan A. O’Brien$^{1,*}$
-  - Valentina Marconi$^{4}$
-  - Thomas F. Johnson$^{5}$
+  - Valentina Marconi$^{4,5}$
+  - Thomas F. Johnson$^{6}$
   - Robin Freeman$^{4}$
   - Louise McRae$^{4,\dagger}$
   - Christopher F. Clements$^{1,\dagger}$
@@ -15,7 +15,8 @@ date:
   - 2. Departament de Biologia Evolutiva, Ecologia i Ciències Ambientals, Universitat de Barcelona, Barcelona, Spain \newline 
   - 3. Institut de Recerca de la Biodiversitat, Universitat de Barcelona (UB), Barcelona, Spain \newline 
   - 4. Institute of Zoology, Zoological Society of London, London, UK \newline 
-  - 5. School of Biosciences, University of Sheffield, Sheffield, UK \newline 
+  - 5. Department of Life Sciences, Imperial College London, London, UK \newline 
+  - 6. School of Biosciences, University of Sheffield, Sheffield, UK \newline 
   - \text{*} These authors contributed equally to this work \newline 
   - \text{$\dagger$} These authors contributed equally to this work \newline 
 header-includes:
@@ -140,7 +141,7 @@ Tables S1 to S6
 
 \newpage
 
-```{r fig1a, fig.height=6, fig.width=10, fig.cap="Demonstration of the threat classification protocol. (a) Trends are first predicted for each threat in additive or interactive combinations. (b) When the difference between predicted interactive trends and additive trends is calculated, there are three possible classes: additive (no difference in predictions made by additive and interacting threats), antagonistic (interacting threat predictions are less negative than additive predictions), or synergistic (interacting threat predictions are more negative than additive predictions). Classes are defined using the 80% credible interval. We consider that a synergy 'worsens' trends -  i.e. becomes more negative. (c) The actual difference between predictions made in panel a."}
+```{r fig1a, fig.height=6, fig.width=10, fig.cap="**Demonstration of the threat classification protocol.** (A) Trends are first predicted for each threat in additive or interactive combinations. (B) When the difference between predicted interactive trends and additive trends is calculated, there are three possible classes: additive (no difference in predictions made by additive and interacting threats), antagonistic (interacting threat predictions are less negative than additive predictions), or synergistic (interacting threat predictions are more negative than additive predictions). Classes are defined using the 80% credible interval. We consider that a synergy 'worsens' trends -  i.e. becomes more negative. (C) The actual difference between predictions made in panel A."}
 intvadd_eg <- tribble(
   ~ int_class,
   ~ .value,
@@ -349,7 +350,7 @@ intvadd_p3 <- ggplot(data = intvadd_diff %>%
 
 (intvadd_p1 + intvadd_p2)/intvadd_p3 +
   plot_layout(ncol = 1,widths = c(0.5,0.5,1), heights = c(1,1,0.75), guides = "collect") +
-  plot_annotation(tag_levels = "a") &
+  plot_annotation(tag_levels = "A") &
   theme(plot.tag = element_text(face = "bold"),
         legend.position = "bottom")
 
@@ -357,7 +358,7 @@ intvadd_p3 <- ggplot(data = intvadd_diff %>%
 
 \newpage
 
-```{r figS3a, fig.height=4, fig.width=14, fig.cap="Effects of threats on vertebrate population trends across realms. 95\\% credible intervals of the effects of single and interacting threats upon (a) freshwater, (b) marine, and (c) terrestrial time series trends. The dashed vertical line shows zero influence – i.e., no effect of the factors – while the None parameter is the trend in the absence of threats. The remaining parameters represent modifications of this None trend. The credible intervals are based on 1,000 samples from the posterior distribution of the model coefficients."}
+```{r figS3a, fig.height=4, fig.width=14, fig.cap="**Effects of threats on vertebrate population trends across realms.** 95\\% credible intervals of the effects of single and interacting threats upon (A) freshwater, (B) marine, and (C) terrestrial time series trends. The dashed vertical line shows zero influence – i.e., no effect of the factors – while the None parameter is the trend in the absence of threats. The remaining parameters represent modifications of this None trend. The credible intervals are based on 1,000 samples from the posterior distribution of the model coefficients."}
 all_threats <- c(
   "None",
   "Pollution",
@@ -470,7 +471,7 @@ system_coefs <- lapply(system_ls, function(mod) {
 })
 
 combinedS5 <-  wrap_plots(system_coefs, ncol = 3) +
-  plot_annotation(tag_levels = "a") &
+  plot_annotation(tag_levels = "A") &
   labs(x = NULL, y = NULL) &
   theme(plot.tag = element_text(face = 'bold'))
 
@@ -504,7 +505,7 @@ cowplot::plot_grid(
 
 \newpage
 
-```{r figS3b, fig.height=8, fig.width=13, fig.cap="Ultimate effect of threats on vertebrate population trends across realms. 95\\% credible intervals of the ultimate estimated trend in the presence of single and interacting threats for (a) freshwater, (b) marine, and (c) terrestrial time series. The dashed horizontal line shows the zero-slope – i.e., no effect of the factors. The credible intervals are based on 1,000 samples from the posterior distribution of the model predictions where threats are included/excluded from the model matrix."}
+```{r figS3b, fig.height=8, fig.width=13, fig.cap="**Ultimate effect of threats on vertebrate population trends across realms.** 95\\% credible intervals of the ultimate estimated trend in the presence of single and interacting threats for (A) freshwater, (B) marine, and (C) terrestrial time series. The dashed horizontal line shows the zero-slope – i.e., no effect of the factors. The credible intervals are based on 1,000 samples from the posterior distribution of the model predictions where threats are included/excluded from the model matrix."}
 threats <- c("pollution",
              "habitatl",
              "climatechange",
@@ -646,7 +647,7 @@ system_dydx <- lapply(system_ls, function(mod) {
 })
 
 combinedS7 <-  wrap_plots(system_dydx, nrow = 3) +
-  plot_annotation(tag_levels = "a") &
+  plot_annotation(tag_levels = "A") &
   labs(x = NULL, y = NULL) &
   theme(plot.tag = element_text(face = 'bold'))
 
@@ -685,7 +686,7 @@ cowplot::plot_grid(
 
 \newpage
 
-```{r figS3c, fig.height=8, fig.width=14, fig.cap="Effects of threats on vertebrate population trends across taxa. 95 % credible intervals of the effects of single and interacting threats upon (a) amphibian, (b) bird, (c) fish, (d) mammalian, and (e) reptilian time series trends. The dashed vertical line shows zero influence – i.e., no effect of the factors – while the None parameter is the trend in the absence of threats. The remaining parameters represent modifications of this None trend. The credible intervals are based on 1,000 samples from the posterior distribution of the model coefficients"}
+```{r figS3c, fig.height=8, fig.width=14, fig.cap="**Effects of threats on vertebrate population trends across taxa.** 95 % credible intervals of the effects of single and interacting threats upon (A) amphibian, (B) bird, (C) fish, (D) mammalian, and (E) reptilian time series trends. The dashed vertical line shows zero influence – i.e., no effect of the factors – while the None parameter is the trend in the absence of threats. The remaining parameters represent modifications of this None trend. The credible intervals are based on 1,000 samples from the posterior distribution of the model coefficients."}
 all_threats <- c(
   "None",
   "Pollution",
@@ -798,7 +799,7 @@ taxon_coefs <- lapply(taxon_ls, function(mod) {
 })
 
 combinedS6 <-  wrap_plots(taxon_coefs, ncol = 3) +
-  plot_annotation(tag_levels = "a") &
+  plot_annotation(tag_levels = "A") &
   labs(x = NULL, y = NULL) &
   theme(plot.tag = element_text(face = 'bold'))
 
@@ -832,7 +833,7 @@ cowplot::plot_grid(
 
 \newpage
 
-```{r figS3d, fig.height=12, fig.width=13, messages = FALSE,fig.cap="Ultimate effect of threats on vertebrate population trends across taxa. 95 % credible intervals of ultimate estimated trends in the presence of single and interacting threats for (a) amphibian, (b) bird, (c) fish, (d) mammalian, and (e) reptilian. The dashed horizontal line shows the zero-slope – i.e., no effect of the factors. The credible intervals are based on 1,000 samples from the posterior distribution of the model predictions where threats are included/excluded from the model matrix."}
+```{r figS3d, fig.height=12, fig.width=13, messages = FALSE,fig.cap="**Ultimate effect of threats on vertebrate population trends across taxa.** 95 % credible intervals of ultimate estimated trends in the presence of single and interacting threats for (A) amphibian, (B) bird, (C) fish, (D) mammalian, and (E) reptilian. The dashed horizontal line shows the zero-slope – i.e., no effect of the factors. The credible intervals are based on 1,000 samples from the posterior distribution of the model predictions where threats are included/excluded from the model matrix."}
 threats <- c("pollution",
              "habitatl",
              "climatechange",
@@ -974,7 +975,7 @@ taxon_dydx <- lapply(taxon_ls, function(mod) {
 })
 
 combinedS8 <-  wrap_plots(taxon_dydx, nrow = 5) +
-  plot_annotation(tag_levels = "a") &
+  plot_annotation(tag_levels = "A") &
   labs(x = NULL, y = NULL) &
   theme(plot.tag = element_text(face = 'bold'))
 
@@ -1013,7 +1014,7 @@ cowplot::plot_grid(
 
 \newpage
 
-```{r figS5a, fig.height=8, fig.width=10, messages = FALSE,fig.cap="Definition of interacting threat classes using 1000 posterior draws estimated from additive vs interacting model matrices. The difference between additive and interacting trend posteriors is calculated with zero differences assumed to be additive. If the 80 \\% credible interval does not intersect 0, and is negative, then that threat combination is assumed to be synergistic, whereas if positive, the combination is classified as antagonistic."}
+```{r figS5a, fig.height=8, fig.width=10, messages = FALSE,fig.cap="**Definition of interacting threat classes using 1000 posterior draws estimated from additive vs interacting model matrices.** The difference between additive and interacting trend posteriors is calculated with zero differences assumed to be additive. If the 80 \\% credible interval does not intersect 0, and is negative, then that threat combination is assumed to be synergistic, whereas if positive, the combination is classified as antagonistic."}
 
 all_threats <- c("pollution",
                  "habitatl",
@@ -1153,7 +1154,7 @@ ggplot(data = diff,
 
 \newpage
 
-```{r fig5c, fig.height=6, fig.width=12, fig.cap="Spread of interactive effects across threats and taxa"}
+```{r fig5c, fig.height=6, fig.width=12, fig.cap="**Spread of interactive effects across threats and taxa.**"}
 
 tableS6 <- lapply(seq_along(taxon_ls), function(mod) {
   # Extract column names from the model
@@ -1362,7 +1363,7 @@ taxon_waffle / taxon_legend + plot_layout(heights = c(1, .1))
 
 \newpage
 
-```{r fig5b, fig.height=6, fig.width=7, fig.cap="Spread of interactive effects across threats and systems."}
+```{r fig5b, fig.height=6, fig.width=7, fig.cap="**Spread of interactive effects across threats and systems.**"}
 
 tableS5 <- lapply(seq_along(system_ls), function(mod) {
   # Extract column names from the model
@@ -1562,7 +1563,7 @@ system_waffle / system_legend + plot_layout(heights = c(1, .1))
 
 \newpage
 
-```{r figwaffle, fig.height=6, fig.width=5, messages = FALSE,fig.cap="Demonstration of how changing the credible interval from 50 to 95% alters the classification of each threat combination."}
+```{r figwaffle, fig.height=6, fig.width=5, messages = FALSE,fig.cap="**Demonstration of how changing the credible interval from 50 to 95% alters the classification of each threat combination.**"}
 
 post_interval_intvadd_diffW <- post_intvadd_diff %>%
   na.omit() %>%
@@ -1694,7 +1695,7 @@ gWa / legendW + plot_layout(heights = c(1, .1))
 
 \newpage
 
-```{r figS6a, fig.height=12, fig.width=14, messages = FALSE,fig.cap="The counterfactual scenarios for multiple threats. The counterfactual scenarios represent the changes in the population trends of the 1,740 vertebrate time-series affected by threats, had there been different combinations of multiple threats. (a) Scenarios representing the global vertebrate population growth where different combinations of two threats were removed. (b) Scenarios representing the global vertebrate population growth where three threats were removed. The black line represents when the population trend is 0. The dotted line is the median trend of the threatened populations without any of the counterfactual scenarios."}
+```{r figS6a, fig.height=12, fig.width=14, messages = FALSE,fig.cap="**Counterfactual predictions for multiple threats.** The counterfactuals represent the changes in the population trends of the 1,740 vertebrate time-series affected by threats, had there been different combinations of multiple threats. (A) Counterfactuals representing the global vertebrate population growth where different combinations of two threats were removed. (B) Counterfactuals representing the global vertebrate population growth where three threats were removed. The black line represents when the population trend is 0. The dotted line is the median trend of the threatened populations without any intervention."}
 # create a vector with all the threats in the dataset
 
 threat_cols <-  colnames(mod_glob$data)[grepl(paste(c("pollution","habitatl",
@@ -1871,13 +1872,13 @@ p3 <- counter_fac_data %>%
 # Combine it
 
 p2 + p3 +
-    plot_annotation(tag_levels = c('a'))
+    plot_annotation(tag_levels = c('A'))
 
 ```
 
 \newpage
 
-```{r fig4a,fig.height=12, fig.width=14, messages = FALSE,fig.cap="Influence of time series length on the relationship between threats and Living Planet Database trends. (a-c) Model estimates for time series containing 10 years of data. (d-f) Model estimates for time series containing 20 years of data."}
+```{r fig4a,fig.height=12, fig.width=14, messages = FALSE,fig.cap="**Influence of time series length on the relationship between threats and Living Planet Database trends.** (A-C) Model estimates for time series containing 10 years of data. (D-F) Model estimates for time series containing 20 years of data."}
 model_ls_sens <- list(mod_glob20, mod_glob40) %>%
   setNames(c("20","40"))
 
@@ -2267,13 +2268,13 @@ layout <- "
 
 wrap_plots(sensitivity_fig2) +
   plot_layout(design = layout, widths = 1, heights = c(1,0.5,1,0.5)) +
-  plot_annotation(tag_levels = "a") &
+  plot_annotation(tag_levels = "A") &
   theme(plot.tag = element_text(face = "bold"))
 ```
 
 \newpage
 
-```{r figS4b, fig.height=7, fig.width=9, messages = FALSE,fig.cap="Frequency of threats, systems and taxa in the Living Planet Database once records have been filtered to time series containing 5, 10 and 20 years of data."}
+```{r figS4b, fig.height=7, fig.width=9, messages = FALSE,fig.cap="**Frequency of threats, systems and taxa in the Living Planet Database once records have been filtered to time series containing 5, 10 and 20 years of data.**"}
 model_ls_sens2 <- list(mod_glob,mod_glob20, mod_glob40) %>%
   setNames(c("10","20","40"))
 
@@ -2463,13 +2464,13 @@ figureS10c <- system_freq %>%
 
 figureS10a + figureS10b + figureS10c + 
          plot_layout(nrow = 3) + 
-         plot_annotation(tag_levels = "a") &
+         plot_annotation(tag_levels = "A") &
          theme(plot.tag = element_text(face = "bold"))
 ```
 
 \newpage
 
-```{r figShaversine, fig.height=4, fig.width=6, messages = FALSE,fig.cap="Influence of rounding latitude to the nearest degree upon the estimated distance between Living Planet Databse sites"}
+```{r figShaversine, fig.height=4, fig.width=6, messages = FALSE,fig.cap="**Influence of rounding latitude to the nearest degree upon the estimated distance between Living Planet Database sites.**"}
 dd_long2 <- dd_long %>%
   group_by(ID) %>%  
   # Calculate population change
@@ -2648,7 +2649,7 @@ p_dist
 
 \newpage
 
-```{r figS2a, cache = FALSE, autodep=FALSE, fig.height=8, fig.width=12, fig.cap="Distribution of the standardised residuals for the multilevel Bayesian models. Residuals were examined for the (a) general model, (b-d) system specific models (freshwater, marine, terrestrial), and (e-i) amphibians, birds, fishes, mammals, and reptiles respectively."}
+```{r figS2a, cache = FALSE, autodep=FALSE, fig.height=8, fig.width=12, fig.cap="**Distribution of the standardised residuals for the multilevel Bayesian models.** Residuals were examined for the (A) global model, (B-D) system specific models (freshwater, marine, terrestrial), and (E-I) amphibians, birds, fishes, mammals, and reptiles respectively."}
 p3a <- lapply(mod_ls_diag, function(m) {
   m$data %>%
     mutate(std_resid = residuals(m, ndraws = 1000)[, "Estimate"]) %>%
@@ -2662,7 +2663,7 @@ p3a <- lapply(mod_ls_diag, function(m) {
 })
 
 combined_plotS2 <-  wrap_plots(p3a, nrow = 3) +
-  plot_annotation(tag_levels = "a") &
+  plot_annotation(tag_levels = "A") &
   labs(x = NULL, y = NULL) &
   theme(plot.tag = element_text(face = 'bold'))
 
@@ -2697,7 +2698,7 @@ cowplot::plot_grid(
 
 \newpage
 
-```{r figS2b, cache = FALSE, autodep=FALSE, fig.height=8, fig.width=12, fig.cap="The standardised residuals vs the predicted values for the multilevel Bayesian models. The standardised residuals vs the predicted values have similar variances for all models, suggesting that the equal variance assumption is met.  Residuals were examined for the (a) general model, (b-d) system specific models (freshwater, marine, terrestrial), and (e-i) amphibians, birds, fishes, mammals, and reptiles respectively."}
+```{r figS2b, cache = FALSE, autodep=FALSE, fig.height=8, fig.width=12, fig.cap="**The standardised residuals vs the predicted values for the multilevel Bayesian models.** The standardised residuals vs the predicted values have similar variances for all models, suggesting that the equal variance assumption is met. Residuals were examined for the (A) global model, (B-D) system specific models (freshwater, marine, terrestrial), and (E-I) amphibians, birds, fishes, mammals, and reptiles respectively."}
 p4a <- lapply(mod_ls_diag, function(m) {
   m$data %>%
     mutate(predict_y = predict(m, ndraws = 1000)[, "Estimate"], std_resid = residuals(m, ndraws = 1000)[, "Estimate"]) %>%
@@ -2712,7 +2713,7 @@ p4a <- lapply(mod_ls_diag, function(m) {
 })
 
 combined_plotS3 <-  wrap_plots(p4a, nrow = 3) +
-  plot_annotation(tag_levels = "a") &
+  plot_annotation(tag_levels = "A") &
   labs(x = NULL, y = NULL) &
   theme(plot.tag = element_text(face = 'bold'))
 
@@ -2747,7 +2748,7 @@ cowplot::plot_grid(
 
 \newpage
 
-```{r figS2c, cache = FALSE, autodep=FALSE, fig.height=8, fig.width=10, fig.cap="The posterior predictive checks for the multilevel Bayesian models. The posterior predictive checks do not show strong discrepancies between our data (dark lines, y) from the predictions from the model (light grey lines, yrep) for any of the models. However, the model shows a slight underestimation of the true zero values. The posterior predictive checks were examined for the (a) general model, (b-d) system specific models (freshwater, marine, terrestrial), and (e-i) amphibians, birds, fishes, mammals, and reptiles respectively."}
+```{r figS2c, cache = FALSE, autodep=FALSE, fig.height=8, fig.width=10, fig.cap="**The posterior predictive checks for the multilevel Bayesian models.** The posterior predictive checks do not show strong discrepancies between our data (dark lines, y) from the predictions from the model (light grey lines, yrep) for any of the models. However, the model shows a slight underestimation of the true zero values. The posterior predictive checks were examined for the (A) global model, (B-D) system specific models (freshwater, marine, terrestrial), and (E-I) amphibians, birds, fishes, mammals, and reptiles respectively."}
 color_scheme_set("darkgray")
 
 p5a <- lapply(mod_ls_diag, function(m) {
@@ -2758,14 +2759,14 @@ p5a <- lapply(mod_ls_diag, function(m) {
 })
 
 wrap_plots(p5a, nrow = 3) +
-  plot_annotation(tag_levels = "a") &
+  plot_annotation(tag_levels = "A") &
   #labs(x = NULL, y = NULL) &
   theme(plot.tag = element_text(face = 'bold'))
 ```
 
 \newpage
 
-```{r figS2e, cache = FALSE, autodep=FALSE, fig.height=6, fig.width=10, fig.cap="Autocorrelation of the standardised residuals for the multilevel Bayesian models. Limited evidence for autocorrelation is present for the (a) general model, (b-d) system specific models (freshwater, marine, terrestrial), and (e-i) amphibians, birds, fishes, mammals, and reptiles respectively."}
+```{r figS2e, cache = FALSE, autodep=FALSE, fig.height=6, fig.width=10, fig.cap="**Autocorrelation of the standardised residuals for the multilevel Bayesian models.** Limited evidence for autocorrelation is present for the (A) global model, (B-D) system specific models (freshwater, marine, terrestrial), and (E-I) amphibians, birds, fishes, mammals, and reptiles respectively."}
 p6a <- lapply(mod_ls_diag, function(m) {
   
   m$data %>%
@@ -2780,7 +2781,7 @@ p6a <- lapply(mod_ls_diag, function(m) {
 })
 
 wrap_plots(p6a, nrow = 3) +
-  plot_annotation(tag_levels = "a") &
+  plot_annotation(tag_levels = "A") &
   #labs(x = NULL, y = NULL) &
   theme(plot.tag = element_text(face = 'bold'))
 ```
@@ -2794,7 +2795,7 @@ tableS1 <- describe_posterior(mod_glob) %>%
   mutate(across(Median:CI_high, ~ round(., digits = 3))) %>%
   mutate(across(Rhat:ESS, ~ round(., digits = 2)))
 
-kable(tableS1, row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Model coefficents for global population trends. Median represents the median of the posterior distribution. CI low and high are the lower and higher values of the 95\\% credible interval. Rhat is the ratio of the effective sample size to the overall number of iterations, with values close to one indicating convergence values") %>%
+kable(tableS1, row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "\\textbf{Model coefficients for global population trends}. Median represents the median of the posterior distribution. CI low and high are the lower and higher values of the 95\\% credible interval.** Rhat is the ratio of the effective sample size to the overall number of iterations, with values close to one indicating convergence values.") %>%
    kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
 ```
 
@@ -2812,7 +2813,7 @@ tableS2 <- lapply(seq_along(system_ls), function(mod) {
   bind_rows() %>%
   arrange(System)
 
-kable(tableS2, row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Model coefficents for global population trends across systems. Median represents the median of the posterior distribution. CI low and high are the lower and higher values of the 95\\% credible interval. Rhat is the ratio of the effective sample size to the overall number of iterations, with values close to one indicating convergence values.") %>%
+kable(tableS2, row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "\\textbf{Model coefficients for global population trends across systems}. Median represents the median of the posterior distribution. CI low and high are the lower and higher values of the 95\\% credible interval. Rhat is the ratio of the effective sample size to the overall number of iterations, with values close to one indicating convergence values.") %>%
    kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
 ```
 
@@ -2830,7 +2831,7 @@ tableS3 <- lapply(seq_along(taxon_ls), function(mod) {
   bind_rows() %>%
   arrange(Taxon)
 
-kable(tableS3, row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Model coefficents for global population trends across taxa. Median represents the median of the posterior distribution. CI low and high are the lower and higher values of the 95\\% credible interval. Rhat is the ratio of the effective sample size to the overall number of iterations, with values close to one indicating convergence values.") %>%
+kable(tableS3, row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "\\textbf{Model coefficients for global population trends across taxa}. Median represents the median of the posterior distribution. CI low and high are the lower and higher values of the 95\\% credible interval. Rhat is the ratio of the effective sample size to the overall number of iterations, with values close to one indicating convergence values.") %>%
    kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
 ```
 
@@ -2864,7 +2865,7 @@ tableS4 <- post_interval_intvadd_diff %>%
   setNames(c("Threat", "Interaction type", "n", "Frequency"))
 
 kable(tableS4 |> 
-        dplyr::mutate(Frequency = round(Frequency,digits = 3)), row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Proportion of threat interaction types estimated by the global model. n represents the number of interaction types present. Frequency represents the proportion of that given interaction type for that threat and system.") %>%
+        dplyr::mutate(Frequency = round(Frequency,digits = 3)), row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "\\textbf{Proportion of threat interaction types estimated by the global model}. n represents the number of interaction types present. Frequency represents the proportion of that given interaction type for that threat and system.") %>%
    kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
 ```
 
@@ -2873,7 +2874,7 @@ kable(tableS4 |>
 ```{r tableS5c}
 
 kable(tableS6 |> 
-        dplyr::mutate(Frequency = round(Frequency,digits = 3)), row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Proportion of threat interaction types across taxa. n represents the number of interaction types present. Frequency represents the proportion of that given interaction type for that threat and taxa") %>%
+        dplyr::mutate(Frequency = round(Frequency,digits = 3)), row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "\\textbf{Proportion of threat interaction types across taxa. n represents the number of interaction types present} Frequency represents the proportion of that given interaction type for that threat and taxa.") %>%
    kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
 ```
 
@@ -2881,7 +2882,7 @@ kable(tableS6 |>
 
 ```{r tableS5b}
 kable(tableS5 |> 
-        dplyr::mutate(Frequency = round(Frequency,digits = 3)), row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "Proportion of threat interaction types across systems. n represents the number of interaction types present. Frequency represents the proportion of that given interaction type for that threat and system.") %>%
+        dplyr::mutate(Frequency = round(Frequency,digits = 3)), row.names = FALSE, booktabs = TRUE, longtable = FALSE, caption = "\\textbf{Proportion of threat interaction types across systems. n represents the number of interaction types present}. Frequency represents the proportion of that given interaction type for that threat and system.") %>%
    kable_styling(latex_options = c("repeat_header"), font_size = 7, html_font = "arial")
 ```
 
