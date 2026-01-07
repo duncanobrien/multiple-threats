@@ -8,7 +8,7 @@ Processed data, code and results from : Capdevila P., O’Brien D.A., Marconi V.
 
 [*Code*](Code) - R scripts for data preprocessing, model fitting, and manuscript figures (separate script files for each figure).
 
-[*Data*](Data) - raw data not provided. Data can be requested from: <https://www.livingplanetindex.org/data_portal>.
+[*Data*](Data) - complete raw data not provided. The full dataset can be requested from: <https://www.livingplanetindex.org/data_portal>, with only the non-confidential entries available in [*blinded_living_planet_data.RData*](Data/blinded_living_planet_data.RData).
 
 [*Results*](Results) - fitted models, manuscript figures and tables. Fitted models are too large to be hosted on github.
 

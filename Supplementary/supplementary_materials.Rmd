@@ -8,8 +8,8 @@ author:
   - Valentina Marconi$^{4,5}$
   - Thomas F. Johnson$^{6}$
   - Robin Freeman$^{4}$
-  - Louise McRae$^{4,\dagger}$
-  - Christopher F. Clements$^{1,\dagger}$
+  - Louise McRae$^{4,\#}$
+  - Christopher F. Clements$^{1,\#}$
 date: 
   - 1. School of Biological Sciences, University of Bristol, Bristol, UK \newline
   - 2. Departament de Biologia Evolutiva, Ecologia i Ciències Ambientals, Universitat de Barcelona, Barcelona, Spain \newline 
@@ -18,9 +18,9 @@ date:
   - 5. Department of Life Sciences, Imperial College London, London, UK \newline 
   - 6. School of Biosciences, University of Sheffield, Sheffield, UK \newline 
   - \text{*} These authors contributed equally to this work \newline 
-  - \text{$\dagger$} These authors contributed equally to this work \newline 
+  - \text{\#} These authors contributed equally to this work \newline 
 header-includes:
-   - \usepackage{caption}
+   - \usepackage[labelfont=bf]{caption}
    -   \newcommand{\beginsupplement}{\setcounter{table}{0}  \renewcommand{\thetable}{S\arabic{table}} \setcounter{figure}{0} \renewcommand{\thefigure}{S\arabic{figure}}}
 output: 
   pdf_document:
