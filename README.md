@@ -1,5 +1,9 @@
 # Halting predicted vertebrate declines requires tackling multiple drivers of biodiversity loss
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18175171.svg)](https://doi.org/10.5281/zenodo.18175171)
+
+Creative Commons Attribution Non Commercial 4.0 International
+
 Processed data, code and results from : Capdevila P., O’Brien D.A., Marconi V., Johnson T.F., Freeman R., McRae L., Clements C.F. 2025. Halting predicted vertebrate declines requires tackling multiple drivers of biodiversity loss
 
 ## Repository layout
